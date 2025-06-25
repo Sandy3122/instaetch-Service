@@ -166,12 +166,12 @@ router.post('/v1/instagram/postsV2',
 );
 
 // Convert media (similar to fastdl.app/api/convert)
-router.post('/convert',
-  scrapingRateLimiter,
-  InstagramController.validateConvertRequest(),
-  InstagramController.handleValidationErrors,
-  controller.convertMedia.bind(controller)
-);
+// router.post('/convert',
+//   scrapingRateLimiter,
+//   InstagramController.validateConvertRequest(),
+//   InstagramController.handleValidationErrors,
+//   controller.convertMedia.bind(controller)
+// );
 
 // Get stories
 router.post('/v1/instagram/stories',

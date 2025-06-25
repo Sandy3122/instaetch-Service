@@ -8,6 +8,7 @@ const {
   securityHeaders,
 } = require('./middleware/security');
 const instagramRoutes = require('./routes/instagram');
+const carouselRoutes = require('./routes/carousel');
 
 class Server {
   constructor() {
@@ -46,7 +47,9 @@ class Server {
   }
   
   setupRoutes() {
-    // API routes
+    // CORRECTED ORDER: Register the most specific routes first.
+    // The /api/carousel route is now registered before the general /api route.
+    this.app.use('/api/carousel', carouselRoutes);
     this.app.use('/api', instagramRoutes);
     
     // Root endpoint
@@ -62,6 +65,7 @@ class Server {
           userInfo: '/api/v1/instagram/userInfo',
           posts: '/api/v1/instagram/postsV2',
           convert: '/api/convert',
+          carousel: '/api/carousel/convert',
           stories: '/api/v1/instagram/stories',
           highlights: '/api/v1/instagram/highlights',
           cache: {
@@ -109,21 +113,12 @@ class Server {
       });
     });
     
-    // 404 handler
+    // 404 handler for any unhandled routes
     this.app.use('*', (req, res) => {
       res.status(404).json({
         error: 'Endpoint not found',
         path: req.originalUrl,
         method: req.method,
-        availableEndpoints: [
-          '/api/v1/instagram/userInfo',
-          '/api/v1/instagram/postsV2',
-          '/api/convert',
-          '/api/v1/instagram/stories',
-          '/api/v1/instagram/highlights',
-          '/api/health',
-          '/api/docs',
-        ],
       });
     });
   }
@@ -132,18 +127,15 @@ class Server {
     return new Promise((resolve, reject) => {
       try {
         this.server = this.app.listen(this.port, () => {
-          console.log(`🚀 InstaFetch API server running on port ${this.port}`);
-          console.log(`📊 Environment: ${config.server.nodeEnv}`);
-          console.log(`🔒 Security: CORS, Rate Limiting, Validation enabled`);
-          console.log(`💾 Cache: TTL ${config.cache.ttl}s, Check period ${config.cache.checkPeriod}s`);
-          console.log(`📚 API Documentation: http://localhost:${this.port}/api/docs`);
-          console.log(`🏥 Health Check: http://localhost:${this.port}/api/health`);
-          
+          console.log(`InstaFetch API server running on port ${this.port}`);
+          console.log(`Environment: ${config.server.nodeEnv}`);
+          console.log(`Health Check: http://localhost:${this.port}/api/health`);
+          console.log(`Carousel endpoint: http://localhost:${this.port}/api/carousel/convert`);
           resolve();
         });
         
         this.server.on('error', (error) => {
-          console.error('Server error:', error);
+          console.error('Server startup error:', error);
           reject(error);
         });
         
@@ -169,16 +161,20 @@ class Server {
     console.log('Shutting down server...');
     
     if (this.server) {
-      this.server.close(() => {
-        console.log('Server closed');
+      this.server.close((err) => {
+        if(err){
+            console.error("Error during server shutdown", err);
+            process.exit(1);
+        }
+        console.log('Server closed.');
         process.exit(0);
       });
       
-      // Force close after 10 seconds
+      // Force close after 10 seconds if graceful shutdown fails
       setTimeout(() => {
         console.error('Could not close connections in time, forcefully shutting down');
         process.exit(1);
-      }, 10000);
+      }, 10000).unref();
     }
   }
 }
@@ -187,9 +183,9 @@ class Server {
 if (require.main === module) {
   const server = new Server();
   server.start().catch((error) => {
-    console.error('Failed to start server:', error);
+    console.error('Unhandled error during server startup:', error);
     process.exit(1);
   });
 }
 
-module.exports = Server; 
+module.exports = Server;
