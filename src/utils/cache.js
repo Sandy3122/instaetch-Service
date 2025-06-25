@@ -98,18 +98,6 @@ class CacheManager {
     };
   }
   
-  // Cache user info
-  cacheUserInfo(username, userData) {
-    const key = this.generateKey('user', username);
-    return this.set(key, userData, 1800); // 30 minutes
-  }
-  
-  // Get cached user info
-  getCachedUserInfo(username) {
-    const key = this.generateKey('user', username);
-    return this.get(key);
-  }
-  
   // Cache posts
   cachePosts(username, postsData) {
     const key = this.generateKey('posts', username);

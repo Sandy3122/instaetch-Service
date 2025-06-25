@@ -49,17 +49,6 @@ router.get('/docs', (req, res) => {
         },
       },
       {
-        path: '/api/v1/instagram/userInfo',
-        method: 'POST',
-        description: 'Get Instagram user information',
-        body: {
-          username: 'string (required)',
-        },
-        example: {
-          username: 'instagram',
-        },
-      },
-      {
         path: '/api/v1/instagram/postsV2',
         method: 'POST',
         description: 'Get Instagram user posts',
@@ -148,14 +137,6 @@ router.post('/cf',
 router.get('/msec', controller.getMillisecondTimestamp.bind(controller));
 
 // Instagram scraping endpoints (following fastdl.app patterns)
-
-// Get user info (similar to fastdl.app/api/v1/instagram/userInfo)
-router.post('/v1/instagram/userInfo',
-  apiRateLimiter,
-  InstagramController.validateUsername(),
-  InstagramController.handleValidationErrors,
-  controller.getUserInfo.bind(controller)
-);
 
 // Get user posts (similar to fastdl.app/api/v1/instagram/postsV2)
 router.post('/v1/instagram/postsV2',

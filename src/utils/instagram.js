@@ -8,6 +8,8 @@ class InstagramScraper {
     this.timeout = config.instagram.timeout;
     this.baseUrl = config.instagram.baseUrl;
     this.apiUrl = config.instagram.apiUrl;
+    this.sessionId = config.instagram.sessionId;
+    this.csrfToken = config.instagram.csrfToken;
 
     // Initialize browser instance
     this.browser = null;
@@ -22,8 +24,8 @@ class InstagramScraper {
       // Configure browser options
       const browserOptions = {
         headless: 'new',
-        protocolTimeout: 120000, // 120 seconds
-        timeout: 120000, // 120 seconds
+        protocolTimeout: 180000, // 180 seconds
+        timeout: 180000, // 180 seconds
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -56,8 +58,9 @@ class InstagramScraper {
         try {
           this.browser = await puppeteer.launch(browserOptions);
           
-          // Test browser by opening a page
+          // Test browser by opening a page and setting up authentication
           const testPage = await this.browser.newPage();
+          await this.setupPageAuth(testPage);
           await testPage.close();
           
           console.log('Browser initialized successfully');
@@ -83,24 +86,80 @@ class InstagramScraper {
     }
   }
 
-  // Create axios instance with Instagram headers
-  createAxiosInstance() {
-    return axios.create({
-      timeout: this.timeout,
-      headers: {
-        'User-Agent': this.userAgent,
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-      },
+  // Setup page authentication
+  async setupPageAuth(page) {
+    if (!this.sessionId) {
+      console.log('No session ID provided, skipping authentication');
+      return;
+    }
+
+    // Set cookies for authentication
+    await page.setCookie({
+      name: 'sessionid',
+      value: this.sessionId,
+      domain: '.instagram.com',
+      path: '/',
+      expires: Date.now() + (1000 * 60 * 60 * 24 * 365), // 1 year
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax'
     });
+
+    if (this.csrfToken) {
+      await page.setCookie({
+        name: 'csrftoken',
+        value: this.csrfToken,
+        domain: '.instagram.com',
+        path: '/',
+        expires: Date.now() + (1000 * 60 * 60 * 24 * 365), // 1 year
+        secure: true,
+        sameSite: 'Lax'
+      });
+    }
+
+    // Set extra headers
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9',
+      'User-Agent': this.userAgent,
+      'X-Instagram-AJAX': '1',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRFToken': this.csrfToken || '',
+    });
+  }
+
+  // Create axios instance with Instagram headers and auth
+  createAxiosInstance() {
+    const headers = {
+      'User-Agent': this.userAgent,
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Connection': 'keep-alive',
+      'X-Instagram-AJAX': '1',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Upgrade-Insecure-Requests': '1',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Site': 'same-origin',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+    };
+
+    if (this.csrfToken) {
+      headers['X-CSRFToken'] = this.csrfToken;
+    }
+
+    const instance = axios.create({
+      timeout: this.timeout,
+      headers,
+    });
+
+    // Add session cookie if available
+    if (this.sessionId) {
+      instance.defaults.headers.Cookie = `sessionid=${this.sessionId}; csrftoken=${this.csrfToken || ''}`;
+    }
+
+    return instance;
   }
 
   // Extract shortcode from Instagram URL
@@ -650,6 +709,7 @@ class InstagramScraper {
       while (retryCount < maxRetries) {
         try {
           page = await this.browser.newPage();
+          await this.setupPageAuth(page);
           break;
         } catch (error) {
           retryCount++;
@@ -667,36 +727,210 @@ class InstagramScraper {
         }
       }
 
-      await page.setUserAgent(this.userAgent);
+      // Enable request interception
+      await page.setRequestInterception(true);
+      let storyData = null;
 
-      // Navigate to user's stories
-      await page.goto(`${this.baseUrl}/stories/${username}/`, {
+      // Intercept network requests
+      page.on('request', request => {
+        const url = request.url();
+        // Block unnecessary resources
+        if (request.resourceType() === 'image' || 
+            request.resourceType() === 'stylesheet' || 
+            request.resourceType() === 'font') {
+          request.abort();
+        } else {
+          if (url.includes('/api/v1/feed/user') || 
+              url.includes('/api/v1/feed/reels_media') ||
+              url.includes('/api/v1/stories/')) {
+            console.log('📡 Intercepted story API request:', url);
+          }
+          request.continue();
+        }
+      });
+
+      // Capture response data
+      page.on('response', async response => {
+        const url = response.url();
+        if (url.includes('/api/v1/feed/user') || 
+            url.includes('/api/v1/feed/reels_media') ||
+            url.includes('/api/v1/stories/')) {
+          try {
+            const data = await response.json();
+            if (data.items && data.items.length > 0) {
+              console.log('📱 Found story data in response');
+              storyData = data.items;
+            }
+          } catch (e) {
+            console.error('Failed to parse story response:', e);
+          }
+        }
+      });
+
+      // Navigate directly to stories URL
+      const storiesUrl = `${this.baseUrl}/stories/${username}/`;
+      console.log('🌐 Navigating to:', storiesUrl);
+      
+      const response = await page.goto(storiesUrl, {
         waitUntil: 'networkidle2',
         timeout: this.timeout,
       });
 
-      // Extract stories data
-      const storiesData = await page.evaluate(() => {
-        const stories = [];
-        const storyItems = document.querySelectorAll('[role="button"]');
+      // Check if we got redirected to login
+      if (response.url().includes('/accounts/login')) {
+        console.log('⚠️ Redirected to login page - Session might be invalid');
+        return {
+          success: false,
+          error: 'Login required to view stories. Please provide valid Instagram session credentials.',
+        };
+      }
 
-        storyItems.forEach(item => {
-          const img = item.querySelector('img');
-          if (img) {
+      // Wait for content to load
+      await page.waitForTimeout(5000);
+
+      // If we didn't get story data from API, try DOM scraping
+      if (!storyData) {
+        console.log('🔍 Attempting DOM-based story extraction');
+        storyData = await page.evaluate(() => {
+          const stories = [];
+          
+          // Enhanced media element detection
+          const mediaElements = Array.from(document.querySelectorAll([
+            'img[decoding="sync"]',
+            'video source',
+            'video',
+            'img[sizes]',
+            'img[srcset]',
+            // Add more specific selectors for story content
+            'div[role="button"] img',
+            'div[role="presentation"] img',
+            'div[role="dialog"] img'
+          ].join(', ')));
+          
+          mediaElements.forEach(media => {
+            // Skip profile pictures and icons
+            if (media.alt?.toLowerCase().includes('profile picture') || 
+                media.src?.includes('profile_pic') ||
+                media.src?.includes('favicon') ||
+                !media.src) {
+              return;
+            }
+
+            const isVideo = media.tagName.toLowerCase() === 'video' || 
+                          media.tagName.toLowerCase() === 'source' ||
+                          media.closest('video');
+            
+            // Get the best quality URL
+            let bestUrl = media.src;
+            if (media.srcset) {
+              const sources = media.srcset.split(',')
+                .map(src => {
+                  const [url, width] = src.trim().split(' ');
+                  return {
+                    url,
+                    width: parseInt(width?.replace('w', '') || '0')
+                  };
+                })
+                .filter(src => src.width > 0);
+
+              if (sources.length > 0) {
+                const bestSource = sources.reduce((best, current) => 
+                  current.width > best.width ? current : best
+                );
+                bestUrl = bestSource.url;
+              }
+            }
+
+            // For videos, try to get the video source
+            if (isVideo) {
+              const videoElement = media.tagName.toLowerCase() === 'video' ? 
+                media : media.closest('video');
+              if (videoElement) {
+                const source = videoElement.querySelector('source');
+                if (source?.src) {
+                  bestUrl = source.src;
+                }
+              }
+            }
+
             stories.push({
-              url: img.src,
-              alt: img.alt,
+              pk: Date.now().toString() + stories.length,
+              taken_at: Math.floor(Date.now() / 1000),
+              type: isVideo ? 'video' : 'photo',
+              image_versions2: {
+                candidates: [{
+                  height: media.naturalHeight || 1920,
+                  width: media.naturalWidth || 1080,
+                  url: bestUrl
+                }]
+              },
+              video_versions: isVideo ? [{
+                height: media.videoHeight || 1920,
+                width: media.videoWidth || 1080,
+                url: bestUrl,
+                type: 101
+              }] : [],
+              has_audio: isVideo,
+              original_height: media.naturalHeight || 1920,
+              original_width: media.naturalWidth || 1080
             });
-          }
+          });
+
+          return stories;
+        });
+      }
+
+      // If we still don't have story data, check if we're on a login page
+      if (!storyData || storyData.length === 0) {
+        const isLoginPage = await page.evaluate(() => {
+          return document.body.textContent.includes('Login') || 
+                 document.body.textContent.includes('Log in') ||
+                 window.location.href.includes('/accounts/login');
         });
 
-        return stories;
+        if (isLoginPage) {
+          console.log('⚠️ Redirected to login page');
+          return {
+            success: false,
+            error: 'Login required to view stories',
+          };
+        }
+
+        // Check if we can find any story content
+        const hasStoryContent = await page.evaluate(() => {
+          return document.querySelector('div[role="dialog"]') !== null ||
+                 document.querySelector('div[role="presentation"]') !== null;
+        });
+
+        if (!hasStoryContent) {
+          console.log('⚠️ No story content found');
+          return {
+            success: false,
+            error: 'No stories found for this user',
+          };
+        }
+      }
+
+      // Format and return the story data
+      const formattedStories = (storyData || []).filter(story => {
+        return story.image_versions2?.candidates?.length > 0 || 
+               story.video_versions?.length > 0;
       });
 
+      if (formattedStories.length === 0) {
+        console.log('⚠️ No valid story media found');
+        return {
+          success: false,
+          error: 'No valid story media found',
+        };
+      }
+
+      console.log(`✅ Successfully found ${formattedStories.length} stories`);
       return {
         success: true,
-        data: storiesData,
+        data: formattedStories
       };
+
     } catch (error) {
       console.error('Error getting stories:', error);
       return {
@@ -704,7 +938,6 @@ class InstagramScraper {
         error: error.message,
       };
     } finally {
-      // Always close the page
       if (page) {
         try {
           await page.close();

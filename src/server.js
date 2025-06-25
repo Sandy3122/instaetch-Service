@@ -51,24 +51,23 @@ class Server {
     
     // Root endpoint
     this.app.get('/', (req, res) => {
+      const endpoints = {
+        cf: '/api/cf',
+        msec: '/api/msec',
+        convert: '/api/convert',
+        stories: '/api/v1/instagram/stories',
+        highlights: '/api/v1/instagram/highlights',
+        postsV2: '/api/v1/instagram/postsV2',
+        health: '/api/health',
+        cacheStats: '/api/cache/stats',
+        cacheClear: '/api/cache/clear',
+        download: '/api/download'
+      };
       res.json({
         name: 'InstaFetch API',
         version: '1.0.0',
         description: 'Secure Instagram Scraper MVP Backend',
-        endpoints: {
-          health: '/api/health',
-          cf: '/api/cf',
-          msec: '/api/msec',
-          userInfo: '/api/v1/instagram/userInfo',
-          posts: '/api/v1/instagram/postsV2',
-          convert: '/api/convert',
-          stories: '/api/v1/instagram/stories',
-          highlights: '/api/v1/instagram/highlights',
-          cache: {
-            stats: '/api/cache/stats',
-            clear: '/api/cache/clear',
-          },
-        },
+        endpoints: endpoints,
         documentation: 'API follows fastdl.app patterns for Instagram scraping',
       });
     });

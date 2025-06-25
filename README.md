@@ -5,7 +5,7 @@ A secure Node.js backend API for scraping public Instagram content (profiles, po
 ## 🚀 Features
 
 - **Secure Instagram Scraping**: Backend-only scraping with no exposure to frontend
-- **Multiple Content Types**: Support for profiles, posts, reels, stories, highlights, IGTV, videos, carousels
+- **Multiple Content Types**: Support for posts, reels, stories, highlights, IGTV, videos, carousels
 - **Caching System**: Intelligent caching to reduce API calls and improve performance
 - **Rate Limiting**: Configurable rate limiting to prevent abuse
 - **Security**: CORS, Helmet, input validation, and other security measures
@@ -129,38 +129,7 @@ GET /msec
 
 ### Instagram Scraping Endpoints
 
-#### 3. Get User Information
-```http
-POST /v1/instagram/userInfo
-Content-Type: application/json
-
-{
-  "username": "instagram"
-}
-```
-
-**Response:**
-```json
-{
-  "result": [{
-    "user": {
-      "id": "25025320",
-      "username": "instagram",
-      "full_name": "Instagram",
-      "biography": "Discovering — and telling — stories from around the world.",
-      "profile_pic_url": "https://...",
-      "followers_count": 123456789,
-      "following_count": 123,
-      "media_count": 1234,
-      "is_private": false,
-      "is_verified": true
-    },
-    "status": "ok"
-  }]
-}
-```
-
-#### 4. Get User Posts
+#### 3. Get User Posts
 ```http
 POST /v1/instagram/postsV2
 Content-Type: application/json
@@ -171,7 +140,7 @@ Content-Type: application/json
 }
 ```
 
-#### 5. Convert Media (Posts, Reels, Videos)
+#### 4. Convert Media (Posts, Reels, Videos)
 ```http
 POST /convert
 Content-Type: application/json
@@ -206,7 +175,7 @@ Content-Type: application/json
 }
 ```
 
-#### 6. Get Stories
+#### 5. Get Stories
 ```http
 POST /v1/instagram/stories
 Content-Type: application/json
@@ -216,7 +185,7 @@ Content-Type: application/json
 }
 ```
 
-#### 7. Get Highlights
+#### 6. Get Highlights
 ```http
 POST /v1/instagram/highlights
 Content-Type: application/json
@@ -228,18 +197,18 @@ Content-Type: application/json
 
 ### Utility Endpoints
 
-#### 8. Health Check
+#### 7. Health Check
 ```http
 GET /health
 ```
 
-#### 9. Cache Management
+#### 8. Cache Management
 ```http
 GET /cache/stats
 DELETE /cache/clear
 ```
 
-#### 10. API Documentation
+#### 9. API Documentation
 ```http
 GET /docs
 ```

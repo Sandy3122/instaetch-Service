@@ -102,51 +102,6 @@ class InstagramController {
     }
   }
   
-  // Get user info endpoint (similar to fastdl.app/api/v1/instagram/userInfo)
-  async getUserInfo(req, res) {
-    try {
-      const { username } = req.body;
-      
-      // Check cache first
-      const cachedData = cacheManager.getCachedUserInfo(username);
-      if (cachedData) {
-        return res.json({
-          result: [{
-            user: cachedData,
-            status: 'ok',
-          }],
-        });
-      }
-      
-      // Scrape user info
-      const result = await this.scraper.getUserInfo(username);
-      
-      if (!result.success) {
-        return res.status(404).json({
-          error: 'User not found or profile is private',
-          details: result.error,
-        });
-      }
-      
-      // Cache the result
-      cacheManager.cacheUserInfo(username, result.data);
-      
-      // Format response like fastdl.app
-      res.json({
-        result: [{
-          user: result.data,
-          status: 'ok',
-        }],
-      });
-    } catch (error) {
-      console.error('Error in getUserInfo:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        details: error.message,
-      });
-    }
-  }
-  
   // Get user posts endpoint (similar to fastdl.app/api/v1/instagram/postsV2)
   async getUserPosts(req, res) {
     try {

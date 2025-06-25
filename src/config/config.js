@@ -17,10 +17,12 @@ const config = {
   },
   
   instagram: {
-    userAgent: process.env.INSTAGRAM_USER_AGENT || 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
-    timeout: parseInt(process.env.INSTAGRAM_TIMEOUT) || 30000,
-    baseUrl: 'https://www.instagram.com',
-    apiUrl: 'https://i.instagram.com/api/v1',
+    userAgent: process.env.INSTAGRAM_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    timeout: parseInt(process.env.INSTAGRAM_TIMEOUT || '120000'),
+    baseUrl: process.env.INSTAGRAM_BASE_URL || 'https://www.instagram.com',
+    apiUrl: process.env.INSTAGRAM_API_URL || 'https://www.instagram.com',
+    sessionId: process.env.INSTAGRAM_SESSION_ID,
+    csrfToken: process.env.INSTAGRAM_CSRF_TOKEN,
   },
   
   cache: {
