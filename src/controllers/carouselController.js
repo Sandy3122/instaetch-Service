@@ -4,7 +4,7 @@
  * all media items from a carousel post.
  */
 
-const InstagramScraper = require('../utils/instagram');
+const InstagramScraper = require('../utils/instagramUtils');
 const cacheManager = require('../utils/cache');
 const { body, validationResult } = require('express-validator');
 
