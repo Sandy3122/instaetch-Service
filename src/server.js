@@ -9,7 +9,6 @@ const {
 } = require('./middleware/security');
 const instagramRoutes = require('./routes/instagram');
 const carouselRoutes = require('./routes/carousel');
-const proxyRoutes = require('./routes/proxy');
 
 class Server {
   constructor() {
@@ -52,7 +51,6 @@ class Server {
     // The /api/carousel route is now registered before the general /api route.
     this.app.use('/api/carousel', carouselRoutes);
     this.app.use('/api', instagramRoutes);
-    this.app.use('/api', proxyRoutes);
     
     // Root endpoint
     this.app.get('/', (req, res) => {

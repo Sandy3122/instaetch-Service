@@ -16,7 +16,7 @@ class InstagramScraper {
 
   async launchBrowser() {
     if (!this.browser) {
-      console.log("🚀 Launching new browser instance...");
+      console.log("Launching new browser instance...");
       this.browser = await chromium.launch({
         headless: true, // Set to false to visually debug the process
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -43,11 +43,33 @@ class InstagramScraper {
       const allowButtonSelector = 'button:has-text("Allow all cookies")';
       const allowButton = page.locator(allowButtonSelector).first();
       await allowButton.waitFor({ state: "visible", timeout: 3000 });
-      console.log('✅ Found "Allow all cookies" button. Clicking it.');
+      console.log('Found "Allow all cookies" button. Clicking it.');
       await allowButton.click();
       await page.waitForTimeout(2000);
     } catch (error) {
       console.log("No cookie dialog found or it timed out, proceeding...");
+    }
+  }
+
+
+  async handleLoginPopup(page) {
+    try {
+      const dialogSelector = 'div[role="dialog"]';
+      await page.waitForSelector(dialogSelector, { state: "visible", timeout: 3000 });
+      console.log("✅ Found login popup. Attempting to close...");
+      try {
+        const closeButtonSelector = 'div[role="dialog"] button[aria-label="Close"]';
+        const closeButton = page.locator(closeButtonSelector);
+        await closeButton.click({ timeout: 1500 });
+        console.log("Popup closed successfully by clicking the 'Close' button.");
+      } catch (error) {
+        console.log("Could not find a 'Close' button. Using fallback: clicking outside popup.");
+        await page.locator('body').click({ position: { x: 10, y: 10 } });
+        console.log("Popup closed successfully by clicking outside.");
+      }
+      await page.waitForTimeout(1000);
+    } catch (error) {
+      console.log("No login popup was found, proceeding...");
     }
   }
 
@@ -136,7 +158,7 @@ class InstagramScraper {
       }
     }
 
-    console.log(`🖼️  Total unique media items found: ${collectedMedia.size}.`);
+    console.log(`Total unique media items found: ${collectedMedia.size}.`);
     return Array.from(collectedMedia.values());
   }
 
@@ -145,6 +167,7 @@ class InstagramScraper {
    * @param {import('playwright').Page} page The Playwright page object.
    * @returns {Promise<Array<{type: string, url: string}>>} A list containing the single media item.
    */
+  
   async scrapeSingleMedia(page) {
     const media = await page.evaluate(() => {
       // Priority 1: Find a video element
@@ -182,6 +205,7 @@ class InstagramScraper {
     return media;
   }
 
+
   async getMediaInfo(url) {
     await this.launchBrowser();
     const context = await this.browser.newContext({
@@ -197,7 +221,8 @@ class InstagramScraper {
       });
 
       await this.handleCookieDialog(page);
-      await page.waitForSelector("main", { timeout: 10000 });
+      await this.handleLoginPopup(page);
+      await page.waitForSelector("main article", { timeout: 10000 });
 
       const nextButtonSelector = 'button[aria-label="Next"]';
       const isCarousel = (await page.locator(nextButtonSelector).count()) > 0;
