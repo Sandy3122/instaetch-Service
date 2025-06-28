@@ -40,8 +40,8 @@ class CarouselController {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        error: 'Validation failed',
-        details: errors.array(),
+        error: 'Invalid request',
+        details: errors.array().map(err => err.msg),
       });
     }
     next();
@@ -54,26 +54,50 @@ class CarouselController {
    * @param {import('express').Response} res The response object.
    */
   async convertCarousel(req, res) {
+    // Set a timeout for the entire request
+    const REQUEST_TIMEOUT = 150000;
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout')), REQUEST_TIMEOUT);
+    });
+
     try {
       const { url } = req.body;
       const shortcode = this.scraper.extractShortcode(url);
 
-      // Check cache first
-      if (shortcode) {
-        const cachedData = cacheManager.getCachedMediaInfo(shortcode);
-        if (cachedData) {
-          console.log(`Cache hit for carousel: ${shortcode}`);
-          return this.formatMediaResponse(cachedData, url, shortcode, res);
-        }
+      if (!shortcode) {
+        return res.status(400).json({
+          error: 'Invalid Instagram URL format',
+        });
       }
-      console.log(`Cache miss for carousel: ${shortcode}. Scraping...`);
 
-      const result = await this.scraper.getMediaInfo(url);
+      // Check cache first
+      const cachedData = cacheManager.getCachedMediaInfo(shortcode);
+      if (cachedData) {
+        console.log(`Cache hit for carousel: ${shortcode}`);
+        return this.formatMediaResponse(cachedData, url, shortcode, res);
+      }
+
+      console.log(`Cache miss for carousel: ${shortcode}. Fetching content...`);
+
+      // Race between the scraping operation and timeout
+      const result = await Promise.race([
+        this.scraper.getMediaInfo(url),
+        timeoutPromise
+      ]);
+
+      // Check if request was aborted/cancelled
+      if (req.aborted) {
+        console.log('Request was aborted by the client');
+        return res.status(499).json({
+          error: 'Client closed request',
+          details: 'The request was cancelled by the client'
+        });
+      }
 
       if (!result.success) {
         return res.status(404).json({
-          error: 'Carousel media not found or scraping failed',
-          details: result.error,
+          error: 'Content not available',
+          details: result.error || 'The requested media content could not be retrieved.',
         });
       }
 
@@ -87,9 +111,25 @@ class CarouselController {
       return this.formatMediaResponse(mediaData, url, shortcode, res);
     } catch (error) {
       console.error('Error in convertCarousel:', error);
+      
+      // Handle specific error types
+      if (error.message.includes('timeout')) {
+        return res.status(504).json({
+          error: 'Request timeout',
+          details: 'The request took too long to process. Please try again.',
+        });
+      }
+
+      if (error.message.includes('navigation')) {
+        return res.status(504).json({
+          error: 'Navigation failed',
+          details: 'Failed to load the Instagram page. Please try again.',
+        });
+      }
+
       res.status(500).json({
-        error: 'Internal server error',
-        details: error.message,
+        error: 'Service temporarily unavailable',
+        details: 'Please try again in a few moments.',
       });
     }
   }
@@ -112,7 +152,7 @@ class CarouselController {
         comment_count: mediaData.comment_count,
         like_count: mediaData.like_count,
         taken_at: mediaData.taken_at_timestamp,
-        username: mediaData.username,
+        username: mediaData.username || 'unknown',
       };
 
       if (mediaData.items && mediaData.items.length > 0) {
@@ -130,7 +170,7 @@ class CarouselController {
                 ...meta,
                 title: mediaData.is_carousel ? `${caption} (Slide ${index + 1}/${mediaData.items.length})` : caption,
               },
-              thumb: item.thumbnail,
+              thumb: item.thumbnail || item.url,
               hosting: 'instagram.com',
             });
           }
@@ -139,17 +179,18 @@ class CarouselController {
 
       if (responses.length === 0) {
         return res.status(404).json({
-          error: 'No media URLs found',
+          error: 'No media content found',
+          details: 'The post does not contain any accessible media.',
         });
       }
       
-      console.log(`Successfully formatted ${responses.length} carousel item(s)`);
+      console.log(`Successfully processed ${responses.length} media item(s)`);
       res.json(responses);
     } catch (error) {
-      console.error('Error formatting carousel response:', error);
+      console.error('Error formatting media response:', error);
       res.status(500).json({
-        error: 'Error formatting response',
-        details: error.message,
+        error: 'Service temporarily unavailable',
+        details: 'Please try again in a few moments.',
       });
     }
   }
