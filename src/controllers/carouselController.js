@@ -62,11 +62,11 @@ class CarouselController {
       if (shortcode) {
         const cachedData = cacheManager.getCachedMediaInfo(shortcode);
         if (cachedData) {
-          console.log(`✅ Cache hit for carousel: ${shortcode}`);
+          console.log(`Cache hit for carousel: ${shortcode}`);
           return this.formatMediaResponse(cachedData, url, shortcode, res);
         }
       }
-      console.log(`❌ Cache miss for carousel: ${shortcode}. Scraping...`);
+      console.log(`Cache miss for carousel: ${shortcode}. Scraping...`);
 
       const result = await this.scraper.getMediaInfo(url);
 
@@ -143,7 +143,7 @@ class CarouselController {
         });
       }
       
-      console.log(`✅ Successfully formatted ${responses.length} carousel item(s)`);
+      console.log(`Successfully formatted ${responses.length} carousel item(s)`);
       res.json(responses);
     } catch (error) {
       console.error('Error formatting carousel response:', error);
