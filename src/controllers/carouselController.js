@@ -62,6 +62,12 @@ class CarouselController {
 
     try {
       const { url } = req.body;
+      
+      // Ensure scraper is initialized
+      if (!this.scraper) {
+        this.scraper = new InstagramScraper();
+      }
+
       const shortcode = this.scraper.extractShortcode(url);
 
       if (!shortcode) {
