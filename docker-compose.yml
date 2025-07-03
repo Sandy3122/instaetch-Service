@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  instagram-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: instagram-scraper:latest
+    container_name: instagram-scraper
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - .:/app
+      - /app/node_modules
+      # Volume for storing session data
+      - instagram_sessions:/app/src/sessions
+    restart: unless-stopped
+    # Add healthcheck to ensure service is running properly
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  instagram_sessions:
+    driver: local 

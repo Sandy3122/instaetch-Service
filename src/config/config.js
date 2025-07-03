@@ -105,10 +105,10 @@ const config = {
     ],
     // Array of login credentials
     loginDetails: [ 
-      // { username: "Creative_6543", password: "Magnum@123" },
+      { username: "Creative_6543", password: "Magnum@123" },
       { username: "Hotchips_4321", password: "Magnum@123" },
-      // { username: "famous_kitchen_123", password: "Magnum@123" },
-      // { username: "Rockstarr_12345", password: "Magnum@123" },
+      { username: "famous_kitchen_123", password: "Magnum@123" },
+      { username: "Rockstarr_12345", password: "Magnum@123" },
     ]
   },
   

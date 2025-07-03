@@ -34,7 +34,6 @@
     "morgan": "^1.10.0",
     "node-cache": "^5.1.2",
     "playwright": "^1.53.1",
-    "puppeteer": "^21.6.1",
     "rate-limiter-flexible": "^4.0.1",
     "uuid": "^9.0.1"
   },
