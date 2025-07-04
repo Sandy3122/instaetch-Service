@@ -670,6 +670,7 @@ const CarouselController = require('./controllers/carouselController');
 const instagramRoutes = require('./routes/instagram');
 const carouselRoutes = require('./routes/carousel');
 
+const logger = require('./utils/logger');
 
 class Server {
   constructor() {
@@ -690,28 +691,27 @@ class Server {
     // Compression middleware
     this.app.use(compression());
     
-    // Logging middleware
-    if (config.server.nodeEnv === 'development') {
-      this.app.use(morgan('dev'));
-    } else {
-      this.app.use(morgan('combined'));
-    }
+    // Logging middleware - skip proxy-media requests to reduce log noise
+    this.app.use(morgan('combined', { 
+      stream: logger.stream,
+      skip: (req, res) => req.path === '/api/proxy-media'
+    }));
     
     // Body parsing middleware
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     
-    // Request logging
-    this.app.use((req, res, next) => {
-      console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
-      next();
-    });
+    // Request logging - replace console.log with logger
+    // this.app.use((req, res, next) => {
+    //   logger.http(`${req.method} ${req.originalUrl}`);
+    //   next();
+    // });
 
     // Request timeout middleware (5 minutes)
     this.app.use((req, res, next) => {
       const timeout = setTimeout(() => {
         if (!res.headersSent) {
-          console.log(`Request timeout for ${req.method} ${req.originalUrl}`);
+          logger.warn(`Request timeout for ${req.method} ${req.originalUrl}`);
           res.status(408).json({
             error: 'Request timeout',
             details: 'The request took too long to process'
@@ -786,7 +786,7 @@ class Server {
   setupErrorHandling() {
     // Global error handler
     this.app.use((err, req, res, next) => {
-      console.error('Global error handler:', err);
+      logger.error('Global error handler:', err);
       
       // Handle specific error types
       if (err.name === 'ValidationError') {
@@ -820,6 +820,7 @@ class Server {
     
     // 404 handler for any unhandled routes
     this.app.use('*', (req, res) => {
+      logger.warn(`404 - Endpoint not found: ${req.method} ${req.originalUrl}`);
       res.status(404).json({
         error: 'Endpoint not found',
         path: req.originalUrl,
@@ -841,43 +842,43 @@ class Server {
         this.setupRoutes(instagramControllerInstance, carouselControllerInstance);
 
         // IMPORTANT: Register error handling AFTER all routes have been set up
-        this.setupErrorHandling(); // <--- Moved this call here
+        this.setupErrorHandling();
 
         return new Promise((resolve, reject) => {
             this.server = this.app.listen(this.port, '0.0.0.0', () => {
-                console.log(`InstaFetch API server running on port ${this.port}`);
-                console.log(`Environment: ${config.server.nodeEnv}`);
-                console.log(`Health Check: http://localhost:${this.port}/api/health`);
-                console.log(`Carousel endpoint: http://localhost:${this.port}/api/carousel/convert`);
+                logger.info(`InstaFetch API server running on port ${this.port}`);
+                logger.info(`Environment: ${config.server.nodeEnv}`);
+                logger.info(`Health Check: http://localhost:${this.port}/api/health`);
+                logger.info(`Carousel endpoint: http://localhost:${this.port}/api/carousel/convert`);
                 resolve();
             });
 
             this.server.on('error', (error) => {
-                console.error('Server startup error:', error);
+                logger.error('Server startup error:', error);
                 reject(error);
             });
 
             // Graceful shutdown
             process.on('SIGTERM', () => {
-                console.log('SIGTERM received, shutting down gracefully');
+                logger.info('SIGTERM received, shutting down gracefully');
                 this.shutdown();
             });
 
             process.on('SIGINT', () => {
-                console.log('SIGINT received, shutting down gracefully');
+                logger.info('SIGINT received, shutting down gracefully');
                 this.shutdown();
             });
         });
     } catch (error) {
-        console.error('Failed to start server:', error);
+        logger.error('Failed to start server:', error);
         // Ensure browser is closed if session init fails
         await sessionManager.close(); 
-        throw error; // Rethrow to be caught by the final catch block
+        throw error;
     }
   }
   
   async shutdown() {
-    console.log('Shutting down server...');
+    logger.info('Shutting down server...');
     
     // Close the browser managed by the session manager
     await sessionManager.close();
@@ -885,31 +886,25 @@ class Server {
     if (this.server) {
       this.server.close((err) => {
         if(err){
-            console.error("Error during server shutdown", err);
+            logger.error("Error during server shutdown", err);
             process.exit(1);
         }
-        console.log('Server closed.');
+        logger.info('Server closed successfully');
         process.exit(0);
       });
-      
-      // Force close after 10 seconds if graceful shutdown fails
-      setTimeout(() => {
-        console.error('Could not close connections in time, forcefully shutting down');
-        process.exit(1);
-      }, 10000).unref();
     }
   }
 }
 
 // Add global error handlers to prevent crashes
 process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
+    logger.error('Uncaught Exception:', error);
     // Don't exit the process, just log the error
     // This prevents the server from crashing due to unhandled errors
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
     // Don't exit the process, just log the error
     // This prevents the server from crashing due to unhandled promise rejections
 });
@@ -921,7 +916,7 @@ process.on('unhandledRejection', (reason, promise) => {
             const server = new Server();
             await server.start();
         } catch (error) {
-            console.error('Unhandled error during server startup:', error);
+            logger.error('Unhandled error during server startup:', error);
             process.exit(1);
         }
     }

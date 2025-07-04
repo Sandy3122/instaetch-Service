@@ -113,7 +113,9 @@ const config = {
   },
   
   cache: {
-    ttl: parseInt(process.env.CACHE_TTL) || 3600, // 1 hour
+    ttl: parseInt(process.env.CACHE_TTL) || 86400, // 1 day
+    storyTTL: parseInt(process.env.STORY_TTL) || 14400, // 4 hours
+    highlightTTL: parseInt(process.env.HIGHLIGHT_TTL) || 18000, // 5 hours
     checkPeriod: parseInt(process.env.CACHE_CHECK_PERIOD) || 600, // 10 minutes
   },
   

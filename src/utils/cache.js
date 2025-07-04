@@ -1,5 +1,6 @@
 const NodeCache = require('node-cache');
 const config = require('../config/config');
+const logger = require('./logger');
 
 class CacheManager {
   constructor() {
@@ -11,12 +12,12 @@ class CacheManager {
     
     // Handle cache errors
     this.cache.on('error', (err) => {
-      console.error('Cache error:', err);
+      logger.error('Cache error:', err);
     });
     
     // Handle cache expiration
     this.cache.on('expired', (key, value) => {
-      console.log(`Cache key expired: ${key}`);
+      logger.debug(`Cache key expired: ${key}`);
     });
   }
   
@@ -30,7 +31,7 @@ class CacheManager {
     try {
       return this.cache.set(key, value, ttl);
     } catch (error) {
-      console.error('Cache set error:', error);
+      logger.error('Cache set error:', error);
       return false;
     }
   }
@@ -40,7 +41,7 @@ class CacheManager {
     try {
       return this.cache.get(key);
     } catch (error) {
-      console.error('Cache get error:', error);
+      logger.error('Cache get error:', error);
       return undefined;
     }
   }
@@ -55,7 +56,7 @@ class CacheManager {
     try {
       return this.cache.del(key);
     } catch (error) {
-      console.error('Cache delete error:', error);
+      logger.error('Cache delete error:', error);
       return false;
     }
   }
@@ -65,7 +66,7 @@ class CacheManager {
     try {
       return this.cache.flushAll();
     } catch (error) {
-      console.error('Cache flush error:', error);
+      logger.error('Cache flush error:', error);
       return false;
     }
   }
@@ -101,7 +102,7 @@ class CacheManager {
   // Cache user info
   cacheUserInfo(username, userData) {
     const key = this.generateKey('user', username);
-    return this.set(key, userData, 1800); // 30 minutes
+    return this.set(key, userData, 86400); // 1 day
   }
   
   // Get cached user info
@@ -113,7 +114,7 @@ class CacheManager {
   // Cache posts
   cachePosts(username, postsData) {
     const key = this.generateKey('posts', username);
-    return this.set(key, postsData, 900); // 15 minutes
+    return this.set(key, postsData, 86400); // 1 day
   }
   
   // Get cached posts
@@ -125,7 +126,7 @@ class CacheManager {
   // Cache media info
   cacheMediaInfo(shortcode, mediaData) {
     const key = this.generateKey('media', shortcode);
-    return this.set(key, mediaData, 3600); // 1 hour
+    return this.set(key, mediaData, 86400); // 1 day
   }
   
   // Get cached media info
@@ -137,7 +138,7 @@ class CacheManager {
   // Cache stories
   cacheStories(username, storiesData) {
     const key = this.generateKey('stories', username);
-    return this.set(key, storiesData, 300); // 5 minutes
+    return this.set(key, storiesData, 14400); // 4 hours
   }
   
   // Get cached stories
@@ -149,7 +150,7 @@ class CacheManager {
   // Cache highlights
   cacheHighlights(username, highlightsData) {
     const key = this.generateKey('highlights', username);
-    return this.set(key, highlightsData, 1800); // 30 minutes
+    return this.set(key, highlightsData, 18000); // 5 hours
   }
   
   // Get cached highlights
