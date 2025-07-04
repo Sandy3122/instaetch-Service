@@ -1948,7 +1948,7 @@ class InstagramScraper {
           caption: metadata.caption,
         };
 
-        console.log("Scraping successful. Data:", responseData);
+        // console.log("Scraping successful. Data:", responseData);
         return { success: true, data: responseData };
       } finally {
         // Ensure the page is closed after each scraping operation

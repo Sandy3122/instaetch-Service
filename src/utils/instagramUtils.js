@@ -503,7 +503,7 @@ class InstagramScraper {
         caption: metadata.caption,
       };
 
-      console.log("Scraping successful. Data:", responseData);
+//       console.log("Scraping successful. Data:", responseData);
       return { success: true, data: responseData };
         } catch (error) {
       console.error(`Error in getMediaInfo with Playwright: ${error.message}`);

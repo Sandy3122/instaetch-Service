@@ -849,7 +849,7 @@ class InstagramController {
           timestamp: Math.floor(Date.now() / 1000),
         }));
         
-        console.log(`🎠 Returning ${responses.length} carousel items`);
+        console.log(`Returning ${responses.length} carousel items`);
         res.json(responses);
       } else {
         // Single media item - still return as array for consistency
