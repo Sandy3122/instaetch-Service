@@ -16,38 +16,61 @@ class InstagramScraper {
   /**
    * Launches a new browser instance and creates a new context if they don't already exist.
    */
-  async launchBrowser() {
-    if (!this.browser) {
-      console.log("Launching new browser instance...");
-      this.browser = await chromium.launch({
-        headless: true, // Set to false for debugging to see the browser UI
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      });
+    async launchBrowser() {
+    if (!this.browser) {
+      try {
+        console.log("Launching new browser instance...");
+        this.browser = await chromium.launch({
+          headless: true, // Set to false for debugging to see the browser UI
+          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        });
 
-      // Create a persistent context
-      this.context = await this.browser.newContext({
-        userAgent: this.userAgent,
-        viewport: { width: 1280, height: 800 },
-      });
-    }
-    return this.browser;
-  }
+        // Create a persistent context
+        this.context = await this.browser.newContext({
+          userAgent: this.userAgent,
+          viewport: { width: 1280, height: 800 },
+        });
+      } catch (error) {
+        console.error('Failed to launch browser:', error.message);
+        // Clean up any partial initialization
+        if (this.browser) {
+          try {
+            await this.browser.close();
+          } catch (closeError) {
+            console.error('Failed to close browser after launch error:', closeError.message);
+          }
+          this.browser = null;
+        }
+        throw error;
+      }
+    }
+    return this.browser;
+  }
 
   /**
    * Closes the browser context and the browser instance if they exist.
    */
-  async closeBrowser() {
-    if (this.context) {
-      console.log("Closing browser context...");
-      await this.context.close();
-      this.context = null;
-    }
-    if (this.browser) {
-      console.log("Closing browser instance...");
-      await this.browser.close();
-      this.browser = null;
-    }
-  }
+    async closeBrowser() {
+    try {
+      if (this.context) {
+        console.log("Closing browser context...");
+        await this.context.close();
+        this.context = null;
+      }
+    } catch (error) {
+      console.error('Failed to close browser context:', error.message);
+    }
+    
+    try {
+      if (this.browser) {
+        console.log("Closing browser instance...");
+        await this.browser.close();
+        this.browser = null;
+      }
+    } catch (error) {
+      console.error('Failed to close browser instance:', error.message);
+    }
+  }
 
   /**
    * Extracts the shortcode from an Instagram URL.
@@ -482,26 +505,36 @@ class InstagramScraper {
 
       console.log("Scraping successful. Data:", responseData);
       return { success: true, data: responseData };
-    } catch (error) {
-      console.error(`Error in getMediaInfo with Playwright: ${error.message}`);
-      const screenshotPath = `error_screenshot_${Date.now()}.png`;
-      // Take a screenshot on error for debugging
-      if (page && !page.isClosed()) {
-        await page.screenshot({ path: screenshotPath, fullPage: true });
-        console.log(`Screenshot for debugging saved to ${screenshotPath}`);
-      } else {
-        console.log(`Could not take screenshot: Page was already closed or not initialized.`);
-      }
-      return {
-        success: false,
-        error: `Failed to scrape media: ${error.message}`,
-      };
-    } finally {
-      // Ensure the page is closed
-      if (page && !page.isClosed()) {
-          await page.close();
-      }
-    }
+        } catch (error) {
+      console.error(`Error in getMediaInfo with Playwright: ${error.message}`);
+      
+      // Take a screenshot on error for debugging (but don't let it crash the server)
+      try {
+        const screenshotPath = `error_screenshot_${Date.now()}.png`;
+        if (page && !page.isClosed()) {
+            await page.screenshot({ path: screenshotPath, fullPage: true });
+            console.log(`Screenshot for debugging saved to ${screenshotPath}`);
+        } else {
+            console.log(`Could not take screenshot: Page was already closed or not initialized.`);
+        }
+      } catch (screenshotError) {
+        console.error('Failed to take error screenshot:', screenshotError.message);
+      }
+      
+      return {
+        success: false,
+        error: `Failed to scrape media: ${error.message}`,
+      };
+    } finally {
+      // Ensure the page is closed (but don't let it crash the server)
+      try {
+        if (page && !page.isClosed()) {
+            await page.close();
+        }
+      } catch (closeError) {
+        console.error('Failed to close page:', closeError.message);
+      }
+    }
   }
 }
 

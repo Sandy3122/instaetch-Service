@@ -80,8 +80,8 @@ fi
 
 # Check if running in production mode
 if [ "$NODE_ENV" = "production" ]; then
-    echo "🏭 Starting in PRODUCTION mode..."
-    npm start
+    echo "🏭 Starting in PRODUCTION mode with PM2..."
+    npm run pm2:start
 else
     echo "🔧 Starting in DEVELOPMENT mode..."
     echo "💡 Use 'NODE_ENV=production ./start.sh' for production mode"

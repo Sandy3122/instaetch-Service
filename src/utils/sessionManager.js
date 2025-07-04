@@ -676,14 +676,31 @@ class SessionManager {
 
     } catch (error) {
         console.error(`[${username}] An error occurred during the login process: ${error.message}`);
-        const screenshotPath = `error_login_${username}_${Date.now()}.png`;
-        await page.screenshot({ path: screenshotPath, fullPage: true });
-        console.log(`[${username}] Screenshot for debugging saved to ${screenshotPath}`);
-        await context.close();
+        
+        // Take screenshot for debugging (but don't let it crash the server)
+        try {
+          const screenshotPath = `error_login_${username}_${Date.now()}.png`;
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          console.log(`[${username}] Screenshot for debugging saved to ${screenshotPath}`);
+        } catch (screenshotError) {
+          console.error(`[${username}] Failed to take error screenshot:`, screenshotError.message);
+        }
+        
+        // Close context (but don't let it crash the server)
+        try {
+          await context.close();
+        } catch (closeError) {
+          console.error(`[${username}] Failed to close context:`, closeError.message);
+        }
+        
         throw error; // Re-throw the error to be caught by the initialize loop
     } finally {
-        if (!page.isClosed()) {
-            await page.close();
+        try {
+          if (!page.isClosed()) {
+              await page.close();
+          }
+        } catch (closeError) {
+          console.error(`[${username}] Failed to close page:`, closeError.message);
         }
     }
   }

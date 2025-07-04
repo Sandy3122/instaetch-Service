@@ -2,23 +2,20 @@ version: '3.8'
 
 services:
   instagram-scraper:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: instagram-scraper:latest
-    container_name: instagram-scraper
+    image: sandeepseeram22/instagram-scraper:latest
+    container_name: instagram-scraper-prod
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
       - PM2_HOME=/app/.pm2
     volumes:
-      - .:/app
-      - /app/node_modules
       # Volume for storing session data
       - instagram_sessions:/app/src/sessions
       # Volume for PM2 logs
       - pm2_logs:/app/logs
+      # Volume for persistent data
+      - app_data:/app/data
     restart: unless-stopped
     # Add healthcheck to ensure service is running properly
     healthcheck:
@@ -32,11 +29,33 @@ services:
       resources:
         limits:
           memory: 2G
+          cpus: '1.0'
         reservations:
           memory: 512M
+          cpus: '0.5'
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root filesystem for security
+    read_only: false
+    # Temporary filesystem for /tmp
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
 
 volumes:
   instagram_sessions:
     driver: local
   pm2_logs:
-    driver: local 
+    driver: local
+  app_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge 

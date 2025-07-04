@@ -706,6 +706,25 @@ class Server {
       console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
       next();
     });
+
+    // Request timeout middleware (5 minutes)
+    this.app.use((req, res, next) => {
+      const timeout = setTimeout(() => {
+        if (!res.headersSent) {
+          console.log(`Request timeout for ${req.method} ${req.originalUrl}`);
+          res.status(408).json({
+            error: 'Request timeout',
+            details: 'The request took too long to process'
+          });
+        }
+      }, 300000); // 5 minutes
+
+      res.on('finish', () => {
+        clearTimeout(timeout);
+      });
+
+      next();
+    });
   }
   
   // New method to set up routes after sessionManager is ready
@@ -727,6 +746,17 @@ class Server {
     this.app.use('/api/carousel', carouselRoutes(carouselControllerInstance));
     this.app.use('/api', instagramRoutes(instagramControllerInstance));
     
+    // Health check endpoint
+    this.app.get('/api/health', (req, res) => {
+      res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        sessions: sessionManager ? sessionManager.contexts.length : 0
+      });
+    });
+
     // Root endpoint
     this.app.get('/', (req, res) => {
       res.json({
@@ -870,6 +900,19 @@ class Server {
     }
   }
 }
+
+// Add global error handlers to prevent crashes
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Don't exit the process, just log the error
+    // This prevents the server from crashing due to unhandled errors
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit the process, just log the error
+    // This prevents the server from crashing due to unhandled promise rejections
+});
 
 // Use an async IIFE (Immediately Invoked Function Expression) to handle the async start
 (async () => {

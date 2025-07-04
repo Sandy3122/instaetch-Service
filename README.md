@@ -14,6 +14,8 @@ A secure Node.js backend API for scraping public Instagram content (profiles, po
 - **Documentation**: Built-in API documentation endpoint
 - **Cloudflare Support**: Cloudflare token generation for bypassing protection
 - **Timestamp Services**: Millisecond timestamp generation for API compatibility
+- **Server Stability**: Auto-restart, health monitoring, and crash prevention
+- **Process Management**: PM2 support for production deployment
 
 ## 📋 Prerequisites
 
@@ -66,6 +68,74 @@ A secure Node.js backend API for scraping public Instagram content (profiles, po
    # Full API test
    npm run test:api
    ```
+
+## 🔧 Server Stability & Continuous Operation
+
+### Production Deployment (Recommended)
+
+For 24/7 operation, use PM2:
+
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start with PM2 (auto-restart on crashes)
+npm run pm2:start
+
+# Monitor the process
+npm run pm2:monit
+
+# View logs
+npm run pm2:logs
+
+# Restart if needed
+npm run pm2:restart
+```
+
+### Auto-Monitoring Mode
+
+For automatic health checks and restarts:
+
+```bash
+# Start the server monitor
+npm run monitor
+```
+
+### Health Check
+
+Monitor server health at: `GET /api/health`
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "uptime": 3600,
+  "memory": {
+    "rss": 123456789,
+    "heapTotal": 987654321,
+    "heapUsed": 123456789
+  },
+  "sessions": 2
+}
+```
+
+### Emergency Restart
+
+If the server becomes unresponsive:
+
+```bash
+# Kill all Node.js processes
+pkill -f node
+
+# Or on Windows
+taskkill /f /im node.exe
+
+# Restart with PM2
+npm run pm2:start
+
+# Or restart manually
+npm start
+```
 
 ## 🔧 Configuration
 

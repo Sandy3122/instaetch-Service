@@ -269,10 +269,7 @@ class CarouselController {
   async convertCarousel(req, res) {
     // Set a timeout for the entire request
     const REQUEST_TIMEOUT = 150000;
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), REQUEST_TIMEOUT);
-    });
-
+    
     try {
       const { url } = req.body;
       
@@ -297,6 +294,11 @@ class CarouselController {
       }
 
       console.log(`Cache miss for carousel: ${shortcode}. Fetching content...`);
+
+      // Create a timeout promise that doesn't crash the server
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), REQUEST_TIMEOUT);
+      });
 
       // Race between the scraping operation and timeout
       const result = await Promise.race([
@@ -346,10 +348,13 @@ class CarouselController {
         });
       }
 
-      res.status(500).json({
-        error: 'Service temporarily unavailable',
-        details: 'Please try again in a few moments.',
-      });
+      // Ensure we always send a response and don't let the error crash the server
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'Service temporarily unavailable',
+          details: 'Please try again in a few moments.',
+        });
+      }
     }
   }
 

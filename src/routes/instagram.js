@@ -291,6 +291,40 @@ module.exports = (controller) => { // <--- Change here
   router.get('/cache/stats', controller.getCacheStats.bind(controller));
   router.delete('/cache/clear', controller.clearCache.bind(controller));
 
+  // Proxy endpoint for Instagram media
+router.get('/proxy-media', async (req, res) => {
+  const axios = require('axios'); // ensure axios is available
+
+  try {
+    const { url } = req.query;
+    if (!url || !url.startsWith('http')) {
+      return res.status(400).json({ error: 'Invalid URL parameter' });
+    }
+
+    const response = await axios({
+      method: 'get',
+      url: url,
+      responseType: 'stream',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://www.instagram.com/',
+      }
+    });
+
+    // Forward the headers and pipe the response
+    res.setHeader('Content-Type', response.headers['content-type'] || 'image/jpeg');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+
+    response.data.pipe(res); // pipe the stream to client
+
+  } catch (error) {
+    console.error('Proxy media error:', error.message);
+    res.status(500).json({ error: 'Failed to proxy media', details: error.message });
+  }
+});
+
+
   // API documentation endpoint
   router.get('/docs', (req, res) => {
     res.json({
