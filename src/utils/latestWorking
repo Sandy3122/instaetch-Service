@@ -1,483 +1,5 @@
-// const { chromium } = require("playwright");
-// const config = require("../config/config"); // Assuming config file exists
-
-// class InstagramScraper {
-//   constructor() {
-//     this.browser = null;
-//     this.context = null;
-//     this.userAgent = config.instagram.userAgent;
-//     this.maxRetries = 3; // Maximum number of retries for operations
-//     this.retryDelay = 2000; // Delay between retries in milliseconds
-//     // this.interceptedVideoUrls will be managed per scrape operation, not global to instance
-//     // No longer a class property, it will be a local variable for each getMediaInfo call
-//   }
-
-//   /**
-//    * Launches a new browser instance and creates a new context if they don't already exist.
-//    */
-//   async launchBrowser() {
-//     if (!this.browser) {
-//       console.log("Launching new browser instance...");
-//       this.browser = await chromium.launch({
-//         headless: true, // Set to false for debugging to see the browser UI
-//         args: ["--no-sandbox", "--disable-setuid-sandbox"],
-//       });
-
-//       // Create a persistent context
-//       this.context = await this.browser.newContext({
-//         userAgent: this.userAgent,
-//         viewport: { width: 1280, height: 800 },
-//       });
-//     }
-//     return this.browser;
-//   }
-
-//   /**
-//    * Closes the browser context and the browser instance if they exist.
-//    */
-//   async closeBrowser() {
-//     if (this.context) {
-//       console.log("Closing browser context...");
-//       await this.context.close();
-//       this.context = null;
-//     }
-//     if (this.browser) {
-//       console.log("Closing browser instance...");
-//       await this.browser.close();
-//       this.browser = null;
-//     }
-//   }
-
-//   /**
-//    * Extracts the shortcode from an Instagram URL.
-//    * @param {string} url - The Instagram URL.
-//    * @returns {string|null} The shortcode if found, otherwise null.
-//    */
-//   extractShortcode(url) {
-//     const match = url.match(/(\/p\/|\/reel\/|\/reels\/)([a-zA-Z0-9_-]+)/);
-//     return match ? match[2] : null;
-//   }
-
-//   /**
-//    * Handles the Instagram cookie consent dialog if it appears.
-//    * @param {Page} page - The Playwright Page object.
-//    */
-//   async handleCookieDialog(page) {
-//     try {
-//       console.log("Checking for cookie consent dialog...");
-//       const allowButton = page.getByRole('button', { name: /Allow all cookies/i });
-//       // Use a shorter timeout as this is a common, quickly appearing element
-//       await allowButton.waitFor({ state: "visible", timeout: 2000 });
-//       console.log('Found "Allow all cookies" button. Clicking it.');
-//       await allowButton.click();
-//       await page.waitForTimeout(1000); // Small pause after clicking
-//     } catch (error) {
-//       console.log("No cookie dialog found or it timed out, proceeding...");
-//     }
-//   }
-
-//   /**
-//    * Handles the Instagram login popup if it appears after navigation.
-//    * @param {Page} page - The Playwright Page object.
-//    */
-//   async handleLoginPopup(page) {
-//     try {
-//       const dialogSelector = 'div[role="dialog"]';
-//       // Wait for the dialog to appear
-//       await page.waitForSelector(dialogSelector, { state: "visible", timeout: 3000 });
-//       console.log("✅ Found login popup. Attempting to close...");
-//       // Try to find a close button within the dialog
-//       const closeButton = page.locator('div[role="dialog"] button[aria-label="Close"]');
-//       // If the specific close button isn't found, try a generic close button on the dialog
-//       if (!await closeButton.isVisible()) {
-//           console.log("Specific close button not found, trying generic close.");
-//           const genericCloseButton = page.locator('div[role="dialog"] button:has-text("Not Now")'); // Sometimes "Not Now"
-//           if (await genericCloseButton.isVisible()) {
-//               await genericCloseButton.click({ timeout: 1500 });
-//           } else {
-//               // As a last resort, try pressing Escape key
-//               await page.keyboard.press('Escape');
-//           }
-//       } else {
-//           await closeButton.click({ timeout: 1500 });
-//       }
-//       await page.waitForTimeout(500); // Small pause after closing
-//       console.log("Popup closed successfully.");
-//     } catch (error) {
-//       console.log("No login popup was found or it failed to close, proceeding...");
-//     }
-//   }
-
-//   /**
-//    * Scrapes media from a carousel post by clicking through each item.
-//    * This method will now prioritize intercepted .mp4 URLs for videos.
-//    * @param {Page} page - The Playwright Page object.
-//    * @returns {Array<object>} An array of collected media items (image/video URLs).
-//    */
-//   async clickAndScrapeCarousel(page) {
-//     const nextButtonSelector = 'button[aria-label="Next"]';
-//     const listSelector = "ul._acay"; // Selector for the carousel list
-//     const collectedMedia = new Map(); // Using a Map to store unique media URLs
-
-//     let slideInterceptedVideoUrls = []; // Temporary storage for videos intercepted *per slide*
-
-//     // Set up request interception specifically for this carousel scrape
-//     // We listen for .mp4 requests that happen during the carousel navigation
-//     await page.route("**/*.mp4", async (route) => {
-//       const reqUrl = route.request().url();
-//       // Filter for .mp4 URLs that are likely actual video content, not byte-range requests or profile pics
-//       if (reqUrl.endsWith(".mp4") && !reqUrl.includes("bytestart") && !reqUrl.includes("profile_pic")) {
-//         slideInterceptedVideoUrls.push(reqUrl);
-//         console.log(`[Intercepted for slide] ${reqUrl}`);
-//       }
-//       await route.continue();
-//     });
-
-//     try {
-//       while (true) {
-//         // Clear slide-specific intercepted videos for the *new* slide before proceeding
-//         slideInterceptedVideoUrls = [];
-//         await page.waitForTimeout(1000); // Give a moment for network requests on new slide
-
-//         // Evaluate the page to find current visible media (images/videos)
-//         const currentMediaOnPage = await page.evaluate((selector) => {
-//           const results = [];
-//           const list = document.querySelector(selector);
-//           if (!list) return results;
-
-//           const listItems = list.querySelectorAll("li._acaz"); // Selector for individual carousel items
-//           listItems.forEach((item) => {
-//             const video = item.querySelector("video");
-//             // Only add video if it's not a blob URL. We will prioritize intercepted later.
-//             if (video && video.src && !video.src.startsWith("blob:")) {
-//               results.push({ type: "video", url: video.src });
-//             }
-//             const img = item.querySelector("img.x5yr21d"); // Selector for images in carousel
-//             if (img && img.src) {
-//               results.push({ type: "image", url: img.src });
-//             }
-//           });
-//           return results;
-//         }, listSelector);
-
-//         // Prioritize the *most recently intercepted* video for the current slide
-//         if (slideInterceptedVideoUrls.length > 0) {
-//           const uniqueIntercepted = [...new Set(slideInterceptedVideoUrls)];
-//           // Sort by length to prefer longer (likely higher quality) URLs or simply the last one
-//           // which is often the most relevant for the current slide.
-//           const bestInterceptedVideo = uniqueIntercepted.sort((a, b) => b.length - a.length)[0];
-
-//           if (bestInterceptedVideo) {
-//             const existingVideoIndex = currentMediaOnPage.findIndex(item => item.type === 'video');
-//             if (existingVideoIndex !== -1) {
-//               // Replace existing DOM video (possibly blob or lower quality) with intercepted .mp4
-//               currentMediaOnPage[existingVideoIndex] = { type: "video", url: bestInterceptedVideo };
-//               console.log("Replaced DOM video with intercepted MP4 for current slide.");
-//             } else {
-//               // Add as a new item if no video was found via DOM
-//               currentMediaOnPage.push({ type: "video", url: bestInterceptedVideo });
-//               console.log("Added intercepted MP4 as new media for current slide.");
-//             }
-//           }
-//         }
-
-//         currentMediaOnPage.forEach((media) => {
-//           if (media.url && !collectedMedia.has(media.url)) {
-//             console.log(`[+] Found new media: ${media.type} at ${collectedMedia.size + 1}`);
-//             collectedMedia.set(media.url, media);
-//           }
-//         });
-
-//         // Try to click the next button to advance the carousel
-//         const nextButton = page.locator(nextButtonSelector);
-//         await nextButton.waitFor({ state: "visible", timeout: 2000 });
-//         await nextButton.click();
-//         await page.waitForTimeout(500); // Small pause after clicking next
-//       }
-//     } catch (error) {
-//       console.log("Reached the end of the carousel or timed out. Finalizing collection.");
-//       // Collect any remaining media on the last visible slide
-//       const lastMediaOnPage = await page.evaluate((selector) => {
-//         const results = [];
-//         const list = document.querySelector(selector);
-//         if (!list) return results;
-//         const listItems = list.querySelectorAll("li._acaz");
-//         listItems.forEach((item) => {
-//           const video = item.querySelector("video");
-//           if (video && video.src && !video.src.startsWith("blob:")) results.push({ type: "video", url: video.src });
-//           const img = item.querySelector("img.x5yr21d");
-//           if (img && img.src) results.push({ type: "image", url: img.src });
-//         });
-//         return results;
-//       }, listSelector);
-
-//       // Apply the same interception logic for the last slide
-//       if (slideInterceptedVideoUrls.length > 0) {
-//         const uniqueIntercepted = [...new Set(slideInterceptedVideoUrls)];
-//         const bestInterceptedVideo = uniqueIntercepted.sort((a, b) => b.length - a.length)[0];
-//         if (bestInterceptedVideo) {
-//           const existingVideoIndex = lastMediaOnPage.findIndex(item => item.type === 'video');
-//           if (existingVideoIndex !== -1) {
-//             lastMediaOnPage[existingVideoIndex] = { type: "video", url: bestInterceptedVideo };
-//           } else {
-//             lastMediaOnPage.push({ type: "video", url: bestInterceptedVideo });
-//           }
-//         }
-//       }
-
-//       lastMediaOnPage.forEach((media) => {
-//         if (media.url && !collectedMedia.has(media.url)) {
-//           console.log(`[+] Found final media: ${media.type} at ${collectedMedia.size + 1}`);
-//           collectedMedia.set(media.url, media);
-//         }
-//       });
-//     } finally {
-//       // Important: Unroute the network interception once carousel scraping is done
-//       await page.unroute("**/*.mp4");
-//     }
-
-//     console.log(`Total unique media items found: ${collectedMedia.size}.`);
-//     return Array.from(collectedMedia.values());
-//   }
-
-//   /**
-//    * Scrapes media from a single image/video post, prioritizing video.
-//    * @param {Page} page - The Playwright Page object.
-//    * @param {Array<string>} interceptedVideoUrls - List of video URLs intercepted for this page.
-//    * @returns {Array<object>} An array containing the single media item.
-//    */
-//   async scrapeSingleMedia(page, interceptedVideoUrls) {
-//     const tryGetVideo = async () => {
-//       return await page.evaluate(() => {
-//         const video = document.querySelector("video");
-//         if (video && video.src && !video.src.startsWith("blob:")) {
-//           return { type: "video", url: video.src };
-//         }
-//         return null;
-//       });
-//     };
-
-//     const tryGetImage = async () => {
-//       return await page.evaluate(() => {
-//         // Look for main image elements, filtering out profile pictures and small thumbnails
-//         const images = Array.from(document.querySelectorAll("img.x5yr21d"))
-//           .map((img) => img.src)
-//           .filter(src => src && !src.includes("profile_pic") && !src.includes("/s150x150") && !src.includes("/s320x320"));
-
-//         if (images.length) {
-//           // Return the first found image that is likely the main content
-//           return { type: "image", url: images[0] };
-//         }
-//         return null;
-//       });
-//     };
-
-//     let mediaItem = null;
-
-//     // 1. Fallback to intercepted video URLs (most reliable for reels) - Highest Priority
-//     if (interceptedVideoUrls.length > 0) {
-//       console.log("Checking intercepted video URLs (high priority for single media)...");
-//       const unique = [...new Set(interceptedVideoUrls)];
-//       // Prioritize larger/more complete video URLs if multiple are intercepted
-//       const bestVideo = unique.sort((a, b) => b.length - a.length)[0];
-//       if (bestVideo) {
-//         console.log("Found video from intercepted URLs.");
-//         return [{ type: "video", url: bestVideo }];
-//       }
-//     }
-
-//     // 2. Attempt to get video directly from DOM (might be blob initially, but sometimes the final URL is there)
-//     console.log("Attempting to get video directly from DOM...");
-//     mediaItem = await tryGetVideo();
-//     if (mediaItem) {
-//       console.log("Found video directly.");
-//       return [mediaItem];
-//     }
-
-//     // 3. Try clicking play button if present (for lazy-loaded videos)
-//     console.log("No direct video. Checking for play button...");
-//     const playButton = page.locator('div[role="button"][aria-label*="Play"]');
-//     if (await playButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-//       console.log("Found play button. Clicking it and waiting for video...");
-//       await playButton.click().catch(() => {}); // Click and ignore errors if it disappears
-//       await page.waitForTimeout(2000); // Give time for video to load
-//       mediaItem = await tryGetVideo();
-//       if (mediaItem) {
-//         console.log("Found video after clicking play button.");
-//         return [mediaItem];
-//       }
-//     }
-
-//     // 4. Fallback to Open Graph (OG) meta tags - prioritize video over image
-//     console.log("Checking Open Graph meta tags...");
-//     const ogFallback = await page.evaluate(() => {
-//       const ogVideo = document.querySelector('meta[property="og:video"]')?.content;
-//       const ogImage = document.querySelector('meta[property="og:image"]')?.content;
-
-//       if (ogVideo && !ogVideo.includes("profile_pic")) { // Ensure it's not a profile pic
-//         return { type: "video", url: ogVideo };
-//       }
-//       if (ogImage && !ogImage.includes("profile_pic")) {
-//         return { type: "image", url: ogImage };
-//       }
-//       return null;
-//     });
-
-//     if (ogFallback) {
-//       console.log(`Found media from OG tags: ${ogFallback.type}.`);
-//       return [ogFallback];
-//     }
-
-//     // 5. Final fallback: try to get any main image if no video was found
-//     console.log("No video or OG tags. Attempting to get main image...");
-//     mediaItem = await tryGetImage();
-//     if (mediaItem) {
-//       console.log("Found image as final fallback.");
-//       return [mediaItem];
-//     }
-
-//     // If nothing found
-//     console.log("No media found after all attempts.");
-//     return [];
-//   }
-
-//   /**
-//    * Fetches media information (images/videos, and metadata) from a given Instagram post URL.
-//    * This method now manages its own browser context for each scrape operation to ensure isolation.
-//    * @param {string} url - The URL of the Instagram post.
-//    * @returns {object} An object containing success status and scraped data or error information.
-//    */
-//   async getMediaInfo(url) {
-//     let page; // Declare page outside try-catch for finally block access
-//     let interceptedVideoUrls = []; // Local variable for this specific scrape operation
-
-//     try {
-//       // Ensure browser and context are initialized
-//       await this.launchBrowser();
-
-//       page = await this.context.newPage(); // Create a new page for the scrape
-
-//       // Set up request interception for .mp4 files that occur during the initial page load
-//       // This is crucial for single videos (reels) where the .mp4 URL might be loaded immediately.
-//       await page.route("**/*.mp4", async (route) => {
-//         const reqUrl = route.request().url();
-//         if (reqUrl.endsWith(".mp4") && !reqUrl.includes("bytestart") && !reqUrl.includes("profile_pic")) {
-//           interceptedVideoUrls.push(reqUrl);
-//           console.log(`[Global Intercept] ${reqUrl}`);
-//         }
-//         await route.continue();
-//       });
-
-//       console.log(`Navigating to ${url}...`);
-//       await page.goto(url, {
-//         waitUntil: "domcontentloaded", // Wait for the DOM to be loaded
-//         timeout: config.instagram.timeout, // Use timeout from config
-//       });
-
-//       await this.handleLoginPopup(page); // Handle login popup (if it appears)
-//       await this.handleCookieDialog(page); // Handle cookie consent (if it appears)
-
-//       // Locators for success (main content) or failure (page not found)
-//       const successLocator = page.locator('main[role="main"]');
-//       const failureLocator = page.getByText(/Sorry, this page isn't available/i);
-
-//       console.log("Waiting for page content or error message...");
-//       // Wait for either the main content to appear or the failure message
-//       await Promise.race([
-//         successLocator.waitFor({ state: 'visible', timeout: 15000 }),
-//         failureLocator.waitFor({ state: 'visible', timeout: 15000 }),
-//       ]);
-
-//       // Check if the failure message is visible
-//       if (await failureLocator.isVisible()) {
-//         throw new Error("The requested content is not available. It may have been deleted or the account is private.");
-//       }
-
-//       // If success locator is not visible after waiting, throw an error
-//       if (!await successLocator.isVisible()) {
-//         throw new Error("Could not determine page content after 15 seconds.");
-//       }
-
-//       console.log("Page content loaded successfully.");
-
-//       // Determine if it's a carousel post
-//       const nextButtonSelector = 'button[aria-label="Next"]';
-//       let isCarousel = (await page.locator(nextButtonSelector).count()) > 0;
-//       let extractedItems = [];
-
-//       if (isCarousel) {
-//         console.log("Carousel post detected. Starting scraping...");
-//         // For carousels, `clickAndScrapeCarousel` will manage its own interceptions
-//         extractedItems = await this.clickAndScrapeCarousel(page);
-//       } else {
-//         console.log("Single media post detected. Scraping...");
-//         // Pass the `interceptedVideoUrls` collected during initial page load
-//         extractedItems = await this.scrapeSingleMedia(page, interceptedVideoUrls);
-//       }
-
-//       // If no media items were found, throw an error
-//       if (extractedItems.length === 0) {
-//         throw new Error("Scraping failed. No media items could be found on the page.");
-//       }
-
-//       // Extract post metadata (username and caption)
-//       const metadata = await page.evaluate(() => {
-//         const usernameLink = document.querySelector('header a[href*="/"]');
-//         const username = usernameLink ? usernameLink.textContent : 'unknown';
-//         // Instagram's caption is often in an h1 tag, but this can vary.
-//         // A more robust approach might involve looking for specific data-testid attributes.
-//         const captionDiv = document.querySelector('h1');
-//         const caption = captionDiv ? captionDiv.textContent : '';
-//         return { username, caption };
-//       });
-
-//       const responseData = {
-//         items: extractedItems,
-//         is_carousel: extractedItems.length > 1, // Determine if it was a carousel based on items count
-//         username: metadata.username,
-//         caption: metadata.caption,
-//       };
-
-//       console.log("Scraping successful. Data:", responseData);
-//       return { success: true, data: responseData };
-//     } catch (error) {
-//       console.error(`Error in getMediaInfo with Playwright: ${error.message}`);
-//       const screenshotPath = `error_screenshot_${Date.now()}.png`;
-//       // Take a screenshot on error for debugging
-//       if (page && !page.isClosed()) {
-//         await page.screenshot({ path: screenshotPath, fullPage: true });
-//         console.log(`Screenshot for debugging saved to ${screenshotPath}`);
-//       } else {
-//         console.log(`Could not take screenshot: Page was already closed or not initialized.`);
-//       }
-//       return {
-//         success: false,
-//         error: `Failed to scrape media: ${error.message}`,
-//       };
-//     } finally {
-//       // Ensure the page is closed
-//       if (page && !page.isClosed()) {
-//           await page.close();
-//       }
-//   }
-// }
-// }
-
-
-
-// module.exports = InstagramScraper;
-
-
-
-
-
-
-
-
-
-
-
-
+// Completed working code
+// Single image issue fixed but with video and profile pic issue
 const { chromium } = require("playwright");
 const config = require("../config/config"); // Assuming config file exists
 
@@ -495,38 +17,61 @@ class InstagramScraper {
   /**
    * Launches a new browser instance and creates a new context if they don't already exist.
    */
-  async launchBrowser() {
-    if (!this.browser) {
-      console.log("Launching new browser instance...");
-      this.browser = await chromium.launch({
-        headless: true, // Set to false for debugging to see the browser UI
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      });
+    async launchBrowser() {
+    if (!this.browser) {
+      try {
+        console.log("Launching new browser instance...");
+        this.browser = await chromium.launch({
+          headless: true, // Set to false for debugging to see the browser UI
+          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        });
 
-      // Create a persistent context
-      this.context = await this.browser.newContext({
-        userAgent: this.userAgent,
-        viewport: { width: 1280, height: 800 },
-      });
-    }
-    return this.browser;
-  }
+        // Create a persistent context
+        this.context = await this.browser.newContext({
+          userAgent: this.userAgent,
+          viewport: { width: 1280, height: 800 },
+        });
+      } catch (error) {
+        console.error('Failed to launch browser:', error.message);
+        // Clean up any partial initialization
+        if (this.browser) {
+          try {
+            await this.browser.close();
+          } catch (closeError) {
+            console.error('Failed to close browser after launch error:', closeError.message);
+          }
+          this.browser = null;
+        }
+        throw error;
+      }
+    }
+    return this.browser;
+  }
 
   /**
    * Closes the browser context and the browser instance if they exist.
    */
-  async closeBrowser() {
-    if (this.context) {
-      console.log("Closing browser context...");
-      await this.context.close();
-      this.context = null;
-    }
-    if (this.browser) {
-      console.log("Closing browser instance...");
-      await this.browser.close();
-      this.browser = null;
-    }
-  }
+    async closeBrowser() {
+    try {
+      if (this.context) {
+        console.log("Closing browser context...");
+        await this.context.close();
+        this.context = null;
+      }
+    } catch (error) {
+      console.error('Failed to close browser context:', error.message);
+    }
+    
+    try {
+      if (this.browser) {
+        console.log("Closing browser instance...");
+        await this.browser.close();
+        this.browser = null;
+      }
+    } catch (error) {
+      console.error('Failed to close browser instance:', error.message);
+    }
+  }
 
   /**
    * Extracts the shortcode from an Instagram URL.
@@ -744,6 +289,7 @@ class InstagramScraper {
     return Array.from(collectedMedia.values());
   }
 
+
   /**
    * Scrapes media from a single image/video post, prioritizing video.
    * @param {Page} page - The Playwright Page object.
@@ -751,98 +297,105 @@ class InstagramScraper {
    * @returns {Array<object>} An array containing the single media item.
    */
   async scrapeSingleMedia(page, interceptedVideoUrls) {
-    const tryGetVideo = async () => {
+    const tryGetMedia = async () => {
       return await page.evaluate(() => {
+        const results = [];
+
+        // Priority 1: Get video if available (not blob)
         const video = document.querySelector("video");
         if (video && video.src && !video.src.startsWith("blob:")) {
-          return { type: "video", url: video.src };
+          results.push({ type: "video", url: video.src });
         }
-        return null;
-      });
-    };
 
-    const tryGetImage = async () => {
-      return await page.evaluate(() => {
-        // Look for main image elements, filtering out profile pictures and small thumbnails
-        const images = Array.from(document.querySelectorAll("img.x5yr21d"))
+        // Priority 2: Clean images (non-thumbnail)
+        const images = Array.from(document.querySelectorAll("img"))
           .map((img) => img.src)
-          .filter(src => src && !src.includes("profile_pic") && !src.includes("/s150x150") && !src.includes("/s320x320"));
+          .filter(
+            (src) =>
+              src &&
+              !src.includes("profile_pic") &&
+              !src.includes("/s150x150") &&
+              !src.includes("/s320x320") &&
+              !src.includes("/s240x240") &&
+              !src.includes("/vp/") &&
+              !src.includes("stp=")
+          );
 
         if (images.length) {
-          // Return the first found image that is likely the main content
-          return { type: "image", url: images[0] };
+          results.push({ type: "image", url: images[0] });
         }
-        return null;
+
+        return results;
       });
     };
 
-    let mediaItem = null;
+    let media = await tryGetMedia();
+    if (media.length && media[0].type === "video") return media;
 
-    // 1. Fallback to intercepted video URLs (most reliable for reels) - Highest Priority
-    if (interceptedVideoUrls.length > 0) {
-      console.log("Checking intercepted video URLs (high priority for single media)...");
-      const unique = [...new Set(interceptedVideoUrls)];
-      // Prioritize larger/more complete video URLs if multiple are intercepted
-      const bestVideo = unique.sort((a, b) => b.length - a.length)[0];
-      if (bestVideo) {
-        console.log("Found video from intercepted URLs.");
-        return [{ type: "video", url: bestVideo }];
-      }
-    }
-
-    // 2. Attempt to get video directly from DOM (might be blob initially, but sometimes the final URL is there)
-    console.log("Attempting to get video directly from DOM...");
-    mediaItem = await tryGetVideo();
-    if (mediaItem) {
-      console.log("Found video directly.");
-      return [mediaItem];
-    }
-
-    // 3. Try clicking play button if present (for lazy-loaded videos)
-    console.log("No direct video. Checking for play button...");
+    // Priority 3: Try clicking play if present
     const playButton = page.locator('div[role="button"][aria-label*="Play"]');
-    if (await playButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.log("Found play button. Clicking it and waiting for video...");
-      await playButton.click().catch(() => {}); // Click and ignore errors if it disappears
-      await page.waitForTimeout(2000); // Give time for video to load
-      mediaItem = await tryGetVideo();
-      if (mediaItem) {
-        console.log("Found video after clicking play button.");
-        return [mediaItem];
-      }
+    if (await playButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await playButton.click().catch(() => {});
+      await page.waitForTimeout(2000);
+      media = await tryGetMedia();
+      if (media.length && media[0].type === "video") return media;
     }
 
-    // 4. Fallback to Open Graph (OG) meta tags - prioritize video over image
-    console.log("Checking Open Graph meta tags...");
-    const ogFallback = await page.evaluate(() => {
-      const ogVideo = document.querySelector('meta[property="og:video"]')?.content;
-      const ogImage = document.querySelector('meta[property="og:image"]')?.content;
+    // Priority 4: Scroll to trigger lazy-load
+    await page.mouse.wheel(0, 200);
+    await page.waitForTimeout(2000);
+    media = await tryGetMedia();
+    if (media.length && media[0].type === "video") return media;
 
-      if (ogVideo && !ogVideo.includes("profile_pic")) { // Ensure it's not a profile pic
-        return { type: "video", url: ogVideo };
+    // Priority 5: Directly target known image containers
+    const fallbackImage = await page.evaluate(() => {
+      const results = [];
+
+      // div._aagv > img.x5yr21d (used in many single image posts)
+      const container = document.querySelector("div._aagv");
+      if (container) {
+        const img = container.querySelector("img.x5yr21d");
+        if (img && img.src) {
+          results.push({ type: "image", url: img.src });
+          return results;
+        }
       }
-      if (ogImage && !ogImage.includes("profile_pic")) {
-        return { type: "image", url: ogImage };
+
+      // Fallback: any main-area image with correct class
+      const mainImg = document.querySelector("main img.x5yr21d");
+      if (mainImg && mainImg.src) {
+        results.push({ type: "image", url: mainImg.src });
       }
-      return null;
+
+      return results;
     });
 
-    if (ogFallback) {
-      console.log(`Found media from OG tags: ${ogFallback.type}.`);
-      return [ogFallback];
+    if (fallbackImage.length) return fallbackImage;
+
+    // Priority 6: Use intercepted .mp4
+    if (interceptedVideoUrls.length > 0) {
+      const unique = [...new Set(interceptedVideoUrls)];
+      const bestVideo = unique.pop();
+      return [{ type: "video", url: bestVideo }];
     }
 
-    // 5. Final fallback: try to get any main image if no video was found
-    console.log("No video or OG tags. Attempting to get main image...");
-    mediaItem = await tryGetImage();
-    if (mediaItem) {
-      console.log("Found image as final fallback.");
-      return [mediaItem];
-    }
+    // Priority 7: Fallback to OG meta
+    const ogFallback = await page.evaluate(() => {
+      const result = [];
+      const ogVideo = document.querySelector('meta[property="og:video"]')?.content;
+      const ogImage = document.querySelector('meta[property="og:image"]')?.content;
+      if (ogVideo) result.push({ type: "video", url: ogVideo });
+      else if (
+        ogImage &&
+        !ogImage.includes("profile_pic") &&
+        !ogImage.includes("/s150x150") &&
+        !ogImage.includes("stp=")
+      )
+        result.push({ type: "image", url: ogImage });
+      return result;
+    });
 
-    // If nothing found
-    console.log("No media found after all attempts.");
-    return [];
+    return ogFallback.length ? ogFallback : [];
   }
 
   /**
@@ -952,42 +505,42 @@ class InstagramScraper {
         caption: metadata.caption,
       };
 
-      console.log("Scraping successful. Data:", responseData);
+//       console.log("Scraping successful. Data:", responseData);
       return { success: true, data: responseData };
-    } catch (error) {
-      console.error(`Error in getMediaInfo with Playwright: ${error.message}`);
-      const screenshotPath = `error_screenshot_${Date.now()}.png`;
-      // Take a screenshot on error for debugging
-      if (page && !page.isClosed()) {
-        await page.screenshot({ path: screenshotPath, fullPage: true });
-        console.log(`Screenshot for debugging saved to ${screenshotPath}`);
-      } else {
-        console.log(`Could not take screenshot: Page was already closed or not initialized.`);
-      }
-      return {
-        success: false,
-        error: `Failed to scrape media: ${error.message}`,
-      };
-    } finally {
-      // Ensure the page is closed
-      if (page && !page.isClosed()) {
-          await page.close();
-      }
-    }
+        } catch (error) {
+      console.error(`Error in getMediaInfo with Playwright: ${error.message}`);
+      
+      // Take a screenshot on error for debugging (but don't let it crash the server)
+      try {
+        const screenshotPath = `error_screenshot_${Date.now()}.png`;
+        if (page && !page.isClosed()) {
+            await page.screenshot({ path: screenshotPath, fullPage: true });
+            console.log(`Screenshot for debugging saved to ${screenshotPath}`);
+        } else {
+            console.log(`Could not take screenshot: Page was already closed or not initialized.`);
+        }
+      } catch (screenshotError) {
+        console.error('Failed to take error screenshot:', screenshotError.message);
+      }
+      
+      return {
+        success: false,
+        error: `Failed to scrape media: ${error.message}`,
+      };
+    } finally {
+      // Ensure the page is closed (but don't let it crash the server)
+      try {
+        if (page && !page.isClosed()) {
+            await page.close();
+        }
+      } catch (closeError) {
+        console.error('Failed to close page:', closeError.message);
+      }
+    }
   }
 }
 
 module.exports = InstagramScraper;
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1504,6 +1057,1648 @@ class InstagramScraper {
       }
     }
   }
+}
+
+module.exports = InstagramScraper;
+
+
+
+
+
+
+
+
+
+
+// // Sorry we are having trouble playing this video issue
+const { chromium } = require("playwright");
+const config = require("../config/config"); // Assuming config file exists
+
+class InstagramScraper {
+    constructor() {
+        this.browser = null;
+        this.context = null;
+        this.userAgent = config.instagram.userAgent;
+        this.maxRetries = 3; // Maximum number of retries for operations
+        this.retryDelay = 2000; // Delay between retries in milliseconds
+    }
+
+    /**
+     * Launches a new browser instance and creates a new context if they don't already exist.
+     */
+    async launchBrowser() {
+        if (!this.browser) {
+            try {
+                console.log("Launching new browser instance...");
+                this.browser = await chromium.launch({
+                    headless: true, // Set to false for debugging to see the browser UI
+                    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+                });
+
+                // Create a persistent context
+                this.context = await this.browser.newContext({
+                    userAgent: this.userAgent,
+                    viewport: { width: 1280, height: 800 },
+                });
+            } catch (error) {
+                console.error('Failed to launch browser:', error.message);
+                // Clean up any partial initialization
+                if (this.browser) {
+                    try {
+                        await this.browser.close();
+                    } catch (closeError) {
+                        console.error('Failed to close browser after launch error:', closeError.message);
+                    }
+                    this.browser = null;
+                }
+                throw error;
+            }
+        }
+        return this.browser;
+    }
+
+    /**
+     * Closes the browser context and the browser instance if they exist.
+     */
+    async closeBrowser() {
+        try {
+            if (this.context) {
+                console.log("Closing browser context...");
+                await this.context.close();
+                this.context = null;
+            }
+        } catch (error) {
+            console.error('Failed to close browser context:', error.message);
+        }
+
+        try {
+            if (this.browser) {
+                console.log("Closing browser instance...");
+                await this.browser.close();
+                this.browser = null;
+            }
+        } catch (error) {
+            console.error('Failed to close browser instance:', error.message);
+        }
+    }
+
+    /**
+     * Extracts the shortcode from an Instagram URL.
+     * @param {string} url - The Instagram URL.
+     * @returns {string|null} The shortcode if found, otherwise null.
+     */
+    extractShortcode(url) {
+        const match = url.match(/(\/p\/|\/reel\/|\/reels\/)([a-zA-Z0-9_-]+)/);
+        return match ? match[2] : null;
+    }
+
+    /**
+     * Handles the Instagram cookie consent dialog if it appears.
+     * @param {Page} page - The Playwright Page object.
+     */
+    async handleCookieDialog(page) {
+        try {
+            console.log("Checking for cookie consent dialog...");
+            const allowButton = page.getByRole('button', { name: /Allow all cookies/i });
+            await allowButton.waitFor({ state: "visible", timeout: 2000 });
+            console.log('Found "Allow all cookies" button. Clicking it.');
+            await allowButton.click();
+            await page.waitForTimeout(1000); // Small pause after clicking
+        } catch (error) {
+            console.log("No cookie dialog found or it timed out, proceeding...");
+        }
+    }
+
+    /**
+     * Handles the Instagram login popup if it appears after navigation.
+     * @param {Page} page - The Playwright Page object.
+     */
+    async handleLoginPopup(page) {
+        try {
+            const dialogSelector = 'div[role="dialog"]';
+            await page.waitForSelector(dialogSelector, { state: "visible", timeout: 3000 });
+            console.log("✅ Found login popup. Attempting to close...");
+
+            const closeButton = page.locator('div[role="dialog"] button[aria-label="Close"]');
+            const notNowButton = page.locator('div[role="dialog"] >> text="Not Now"');
+
+            if (await closeButton.isVisible()) {
+                console.log("Found specific close button. Clicking it.");
+                await closeButton.click({ timeout: 1500 });
+            } else if (await notNowButton.isVisible()) {
+                console.log("Found 'Not Now' button. Clicking it.");
+                await notNowButton.click({ timeout: 1500 });
+            } else {
+                console.log("No specific close button or 'Not Now' found, trying Escape key.");
+                await page.keyboard.press('Escape');
+            }
+            await page.waitForTimeout(500); // Small pause after closing
+            console.log("Popup closed successfully.");
+        } catch (error) {
+            console.log("No login popup was found or it failed to close, proceeding...");
+        }
+    }
+
+    /**
+     * Handles the "Watch this reel in the app" prompt by clicking "Continue on web".
+     * @param {Page} page - The Playwright Page object.
+     * @returns {boolean} True if the link was found and clicked, false otherwise.
+     */
+    async handleContinueOnWebPrompt(page) {
+        try {
+            console.log("Checking for 'Continue on web' prompt...");
+            const continueOnWebLink = page.getByRole('link', { name: /Continue on web/i });
+
+            await continueOnWebLink.waitFor({ state: "visible", timeout: 3000 });
+
+            console.log("Found 'Continue on web' link. Clicking it.");
+            await continueOnWebLink.click();
+            await page.waitForLoadState('domcontentloaded', { timeout: 5000 }); // Wait for navigation
+            console.log("'Continue on web' clicked successfully.");
+            return true;
+        } catch (error) {
+            console.log("No 'Continue on web' prompt found or it timed out, proceeding...");
+            return false;
+        }
+    }
+
+    /**
+     * Helper function to extract relevant data from Instagram's embedded JSON.
+     * This method attempts to find data from JSON-LD or window.__additionalDataLoaded.
+     * @param {Page} page - The Playwright Page object.
+     * @returns {object|null} An object with { type, url } if media found, otherwise null.
+     */
+    async _extractEmbeddedJsonData(page) {
+        try {
+            const jsonData = await page.evaluate(() => {
+                // Attempt to find JSON-LD script tag first
+                const jsonLdScript = document.querySelector('script[type="application/ld+json"]');
+                if (jsonLdScript && jsonLdScript.textContent) {
+                    try {
+                        const data = JSON.parse(jsonLdScript.textContent);
+                        // Check for typical Instagram structure within JSON-LD for media
+                        if (data['@type'] === 'VideoObject' || data['@type'] === 'ImageObject' || data['@type'] === 'WebPage') {
+                            return data;
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse JSON-LD script:", e.message);
+                    }
+                }
+
+                // Fallback to window.__additionalDataLoaded if JSON-LD isn't found or parsed
+                const sharedDataScript = Array.from(document.querySelectorAll('script')).find(script => script.textContent.includes('window.__additionalDataLoaded'));
+                if (sharedDataScript && sharedDataScript.textContent) {
+                    try {
+                        const match = sharedDataScript.textContent.match(/window.__additionalDataLoaded\([^,]+,(\{.*?\})\);/);
+                        if (match && match[1]) {
+                            return JSON.parse(match[1]);
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse __additionalDataLoaded script:", e.message);
+                    }
+                }
+                return null;
+            });
+
+            if (jsonData) {
+                // Prioritize video from JSON-LD structure
+                if (jsonData['@type'] === 'VideoObject' && jsonData.contentUrl) {
+                    return { type: 'video', url: jsonData.contentUrl };
+                } else if (jsonData['@type'] === 'ImageObject' && jsonData.contentUrl) {
+                    return { type: 'image', url: jsonData.contentUrl };
+                } else if (jsonData['@type'] === 'WebPage' && jsonData.mainEntity) {
+                    if (jsonData.mainEntity['@type'] === 'VideoObject' && jsonData.mainEntity.contentUrl) {
+                        return { type: 'video', url: jsonData.mainEntity.contentUrl };
+                    } else if (jsonData.mainEntity['@type'] === 'ImageObject' && jsonData.mainEntity.contentUrl) {
+                        return { type: 'image', url: jsonData.mainEntity.contentUrl };
+                    }
+                }
+
+                // Fallback to __additionalDataLoaded structure
+                const shortcodeMedia = jsonData?.entry_data?.PostPage?.[0]?.graphql?.shortcode_media;
+                if (shortcodeMedia) {
+                    if (shortcodeMedia.is_video && shortcodeMedia.video_url) {
+                        return { type: 'video', url: shortcodeMedia.video_url };
+                    } else if (!shortcodeMedia.is_video && shortcodeMedia.display_resources && shortcodeMedia.display_resources.length > 0) {
+                        // Get the largest image from display_resources
+                        const highestResImage = shortcodeMedia.display_resources.sort((a, b) => b.config_width * b.config_height - a.config_width * a.config_height)[0];
+                        if (highestResImage && highestResImage.src) {
+                            return { type: 'image', url: highestResImage.src };
+                        }
+                    } else if (shortcodeMedia.display_url) { // Fallback if no display_resources array
+                        return { type: 'image', url: shortcodeMedia.display_url };
+                    }
+                }
+            }
+            return null;
+        } catch (e) {
+            console.error("Error in _extractEmbeddedJsonData:", e.message);
+            return null;
+        }
+    }
+
+    /**
+     * Handles cases where a video explicitly shows "Sorry, we're having trouble playing this video."
+     * This function will prioritize finding the video via JSON/network requests.
+     * @param {Page} page - The Playwright Page object.
+     * @returns {Array<object>} An array containing the single media item if found.
+     */
+    async _handleVideoPlaybackError(page) {
+        console.log("Attempting alternative video extraction due to playback error.");
+        let mediaFound = [];
+
+        // Attempt 1: Re-check network requests for direct .mp4 (sometimes new requests fire)
+        let tempInterceptedVideos = [];
+        const routeHandler = async (route) => {
+            const reqUrl = route.request().url();
+            if (reqUrl.endsWith(".mp4") && !reqUrl.includes("bytestart") && !reqUrl.includes("profile_pic")) {
+                tempInterceptedVideos.push(reqUrl);
+                console.log(`[Video Error Recovery Intercept] ${reqUrl}`);
+            }
+            await route.continue();
+        };
+
+        await page.route("**/*.mp4", routeHandler);
+        try {
+            // Give it a moment to capture anything new after interaction attempts
+            const learnMoreButton = page.getByText('Learn more', { exact: true });
+            if (await learnMoreButton.isVisible({ timeout: 1000 })) {
+                await learnMoreButton.click();
+                await page.waitForTimeout(1500);
+            }
+            await page.waitForTimeout(1000); // Small additional pause
+        } catch (e) {
+            console.log("No 'Learn more' button or interaction attempt failed.");
+        } finally {
+            await page.unroute("**/*.mp4", routeHandler);
+        }
+
+        if (tempInterceptedVideos.length > 0) {
+            const unique = [...new Set(tempInterceptedVideos)];
+            const bestVideo = unique.sort((a, b) => b.length - a.length)[0];
+            if (bestVideo) {
+                console.log(`[Video Error Recovery] Found video via network intercept: ${bestVideo}`);
+                mediaFound.push({ type: "video", url: bestVideo });
+                return mediaFound; // Prioritize this if found
+            }
+        }
+
+        // Attempt 2: Extract from embedded JSON data (most robust in many cases)
+        const jsonMedia = await this._extractEmbeddedJsonData(page);
+        if (jsonMedia && jsonMedia.type === 'video' && jsonMedia.url && !jsonMedia.url.includes("profile_pic")) {
+            console.log(`[Video Error Recovery] Found video via JSON data: ${jsonMedia.url}`);
+            mediaFound.push(jsonMedia);
+            return mediaFound; // Prioritize this if found
+        }
+
+
+        // Attempt 3: Fallback to OG meta tags
+        const ogVideo = await page.evaluate(() => document.querySelector('meta[property="og:video"]')?.content);
+        if (ogVideo) {
+            console.log(`[Video Error Recovery] Found video via OG meta: ${ogVideo}`);
+            mediaFound.push({ type: "video", url: ogVideo });
+            return mediaFound; // Prioritize this if found
+        }
+        
+        // If all attempts fail
+        console.warn("[Video Error Recovery] Failed to find alternative video URL after specific error detection.");
+        return [];
+    }
+
+
+    /**
+     * Scrapes media from a carousel post by clicking through each item.
+     * This method will now prioritize intercepted .mp4 URLs for videos.
+     * @param {Page} page - The Playwright Page object.
+     * @returns {Array<object>} An array of collected media items (image/video URLs).
+     */
+    async clickAndScrapeCarousel(page) {
+        const nextButtonSelector = 'button[aria-label="Next"]';
+        const listSelector = "ul._acay"; // Selector for the carousel list
+        const collectedMedia = new Map(); // Using a Map to store unique media URLs
+
+        let slideInterceptedVideoUrls = []; // Temporary storage for videos intercepted *per slide*
+
+        await page.route("**/*.mp4", async (route) => {
+            const reqUrl = route.request().url();
+            if (reqUrl.endsWith(".mp4") && !reqUrl.includes("bytestart") && !reqUrl.includes("profile_pic")) {
+                slideInterceptedVideoUrls.push(reqUrl);
+                console.log(`[Intercepted for slide] ${reqUrl}`);
+            }
+            await route.continue();
+        });
+
+        try {
+            while (true) {
+                slideInterceptedVideoUrls = []; // Reset for each new slide
+                await page.waitForTimeout(1000); // Give a moment for network requests on new slide
+
+                const currentMediaOnPage = await page.evaluate((selector) => {
+                    const results = [];
+                    const list = document.querySelector(selector);
+                    if (!list) return results;
+
+                    const listItems = list.querySelectorAll("li._acaz");
+                    listItems.forEach((item) => {
+                        const video = item.querySelector("video");
+                        // Prioritize data-src/data-original-src for video
+                        if (video) {
+                            const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                            if (dataSrc && !dataSrc.startsWith("blob:")) {
+                                results.push({ type: "video", url: dataSrc });
+                            } else if (video.src && !video.src.startsWith("blob:")) {
+                                results.push({ type: "video", url: video.src });
+                            }
+                            const sources = video.querySelectorAll('source');
+                            for (const source of sources) {
+                                if (source.src && !source.src.startsWith("blob:")) {
+                                    results.push({ type: "video", url: source.src });
+                                    break;
+                                }
+                            }
+                        }
+                        const img = item.querySelector("img.x5yr21d");
+                        if (img && img.src) {
+                            // Filter out common thumbnail sizes and profile pics
+                            if (!img.src.includes("profile_pic") &&
+                                !img.src.includes("/s150x150") &&
+                                !img.src.includes("/s320x320") &&
+                                !img.src.includes("/s240x240") &&
+                                !img.src.includes("/vp/") &&
+                                !img.src.includes("stp=")) {
+                                results.push({ type: "image", url: img.src });
+                            }
+                        }
+                    });
+                    return results;
+                }, listSelector);
+
+                // Prioritize the *most recently intercepted* video for the current slide
+                if (slideInterceptedVideoUrls.length > 0) {
+                    const uniqueIntercepted = [...new Set(slideInterceptedVideoUrls)];
+                    const bestInterceptedVideo = uniqueIntercepted.sort((a, b) => b.length - a.length)[0];
+
+                    if (bestInterceptedVideo) {
+                        const existingVideoIndex = currentMediaOnPage.findIndex(item => item.type === 'video');
+                        if (existingVideoIndex !== -1) {
+                            currentMediaOnPage[existingVideoIndex] = { type: "video", url: bestInterceptedVideo };
+                            console.log("Replaced DOM video with intercepted MP4 for current slide.");
+                        } else {
+                            currentMediaOnPage.push({ type: "video", url: bestInterceptedVideo });
+                            console.log("Added intercepted MP4 as new media for current slide.");
+                        }
+                    }
+                }
+
+                currentMediaOnPage.forEach((media) => {
+                    if (media.url && !collectedMedia.has(media.url)) {
+                        console.log(`[+] Found new media: ${media.type} at ${collectedMedia.size + 1}`);
+                        collectedMedia.set(media.url, media);
+                    }
+                });
+
+                const nextButton = page.locator(nextButtonSelector);
+                await nextButton.waitFor({ state: "visible", timeout: 2000 });
+                await nextButton.click();
+                await page.waitForTimeout(500);
+            }
+        } catch (error) {
+            console.log("Reached the end of the carousel or timed out. Finalizing collection.");
+            // Collect any remaining media on the last visible slide
+            const lastMediaOnPage = await page.evaluate((selector) => {
+                const results = [];
+                const list = document.querySelector(selector);
+                if (!list) return results;
+                const listItems = list.querySelectorAll("li._acaz");
+                listItems.forEach((item) => {
+                    const video = item.querySelector("video");
+                    if (video) {
+                        const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                        if (dataSrc && !dataSrc.startsWith("blob:")) {
+                            results.push({ type: "video", url: dataSrc });
+                        } else if (video.src && !video.src.startsWith("blob:")) {
+                            results.push({ type: "video", url: video.src });
+                        }
+                        const sources = video.querySelectorAll('source');
+                        for (const source of sources) {
+                            if (source.src && !source.src.startsWith("blob:")) {
+                                results.push({ type: "video", url: source.src });
+                                break;
+                            }
+                        }
+                    }
+                    const img = item.querySelector("img.x5yr21d");
+                    if (img && img.src) {
+                        if (!img.src.includes("profile_pic") &&
+                            !img.src.includes("/s150x150") &&
+                            !img.src.includes("/s320x320") &&
+                            !img.src.includes("/s240x240") &&
+                            !img.src.includes("/vp/") &&
+                            !img.src.includes("stp=")) {
+                            results.push({ type: "image", url: img.src });
+                        }
+                    }
+                });
+                return results;
+            }, listSelector);
+
+            if (slideInterceptedVideoUrls.length > 0) {
+                const uniqueIntercepted = [...new Set(slideInterceptedVideoUrls)];
+                const bestInterceptedVideo = uniqueIntercepted.sort((a, b) => b.length - a.length)[0];
+                if (bestInterceptedVideo) {
+                    const existingVideoIndex = lastMediaOnPage.findIndex(item => item.type === 'video');
+                    if (existingVideoIndex !== -1) {
+                        lastMediaOnPage[existingVideoIndex] = { type: "video", url: bestInterceptedVideo };
+                    } else {
+                        lastMediaOnPage.push({ type: "video", url: bestInterceptedVideo });
+                    }
+                }
+            }
+
+            lastMediaOnPage.forEach((media) => {
+                if (media.url && !collectedMedia.has(media.url)) {
+                    console.log(`[+] Found final media: ${media.type} at ${collectedMedia.size + 1}`);
+                    collectedMedia.set(media.url, media);
+                }
+            });
+        } finally {
+            await page.unroute("**/*.mp4"); // Ensure unroute happens
+        }
+
+        console.log(`Total unique media items found: ${collectedMedia.size}.`);
+        return Array.from(collectedMedia.values());
+    }
+
+    /**
+     * Scrapes media from a single image/video post, prioritizing video.
+     * @param {Page} page - The Playwright Page object.
+     * @param {Array<string>} interceptedVideoUrls - List of video URLs intercepted for this page.
+     * @returns {Array<object>} An array containing the single media item.
+     */
+    async scrapeSingleMedia(page, interceptedVideoUrls) {
+        let mediaCandidates = [];
+
+        // Attempt 1: Get from current DOM elements
+        const domMedia = await page.evaluate(() => {
+            const results = [];
+            const video = document.querySelector("video");
+            if (video) {
+                const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                if (dataSrc && !dataSrc.startsWith("blob:")) {
+                    results.push({ type: "video", url: dataSrc });
+                } else if (video.src && !video.src.startsWith("blob:")) {
+                    results.push({ type: "video", url: video.src });
+                }
+                const sources = video.querySelectorAll('source');
+                for (const source of sources) {
+                    if (source.src && !source.src.startsWith("blob:")) {
+                        results.push({ type: "video", url: source.src });
+                        break;
+                    }
+                }
+            }
+
+            const images = Array.from(document.querySelectorAll("img"))
+                .map((img) => img.src)
+                .filter(
+                    (src) =>
+                        src &&
+                        !src.includes("profile_pic") &&
+                        !src.includes("/s150x150") &&
+                        !src.includes("/s320x320") &&
+                        !src.includes("/s240x240") &&
+                        !src.includes("/vp/") &&
+                        !src.includes("stp=")
+                );
+            if (images.length) {
+                const bestImage = images.sort((a, b) => b.length - a.length)[0];
+                results.push({ type: "image", url: bestImage });
+            }
+            return results;
+        });
+        mediaCandidates.push(...domMedia);
+
+
+        // Attempt 2: Try clicking play button if available
+        const playButton = page.locator('div[role="button"][aria-label*="Play"]');
+        if (await playButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+            console.log("Attempting to click play button...");
+            await playButton.click().catch(() => { });
+            await page.waitForTimeout(2000);
+            const mediaAfterClick = await page.evaluate(() => {
+                 const results = [];
+                 const video = document.querySelector("video");
+                 if (video) {
+                     const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                     if (dataSrc && !dataSrc.startsWith("blob:")) {
+                         results.push({ type: "video", url: dataSrc });
+                     } else if (video.src && !video.src.startsWith("blob:")) {
+                         results.push({ type: "video", url: video.src });
+                     }
+                     const sources = video.querySelectorAll('source');
+                     for (const source of sources) {
+                         if (source.src && !source.src.startsWith("blob:")) {
+                             results.push({ type: "video", url: source.src });
+                             break;
+                         }
+                     }
+                 }
+                 return results;
+            });
+            mediaCandidates.push(...mediaAfterClick);
+        }
+
+        // Attempt 3: Scroll to trigger lazy-load
+        await page.mouse.wheel(0, 200);
+        await page.waitForTimeout(2000);
+        const mediaAfterScroll = await page.evaluate(() => {
+            const results = [];
+            const video = document.querySelector("video");
+            if (video) {
+                const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                if (dataSrc && !dataSrc.startsWith("blob:")) {
+                    results.push({ type: "video", url: dataSrc });
+                } else if (video.src && !video.src.startsWith("blob:")) {
+                    results.push({ type: "video", url: video.src });
+                }
+                const sources = video.querySelectorAll('source');
+                for (const source of sources) {
+                    if (source.src && !source.src.startsWith("blob:")) {
+                        results.push({ type: "video", url: source.src });
+                        break;
+                    }
+                }
+            }
+            return results;
+        });
+        mediaCandidates.push(...mediaAfterScroll);
+
+
+        // Attempt 4: Use intercepted .mp4 URLs (strong candidate if DOM failed)
+        if (interceptedVideoUrls.length > 0) {
+            const uniqueIntercepted = [...new Set(interceptedVideoUrls)];
+            const bestInterceptedVideo = uniqueIntercepted.sort((a, b) => b.length - a.length)[0];
+            if (bestInterceptedVideo) {
+                console.log(`[scrapeSingleMedia] Adding intercepted MP4 as candidate: ${bestInterceptedVideo}`);
+                mediaCandidates.push({ type: "video", url: bestInterceptedVideo });
+            }
+        }
+
+        // Attempt 5: Extract from embedded JSON data (very robust)
+        const jsonMedia = await this._extractEmbeddedJsonData(page);
+        if (jsonMedia) {
+            if (jsonMedia.url && !jsonMedia.url.includes("profile_pic") && !jsonMedia.url.includes("/s150x150")) {
+                console.log(`[scrapeSingleMedia] Adding JSON-extracted media as candidate: ${jsonMedia.type} - ${jsonMedia.url}`);
+                mediaCandidates.push(jsonMedia);
+            }
+        }
+
+
+        // Attempt 6: Fallback to OG meta
+        const ogMedia = await page.evaluate(() => {
+            const result = [];
+            const ogVideo = document.querySelector('meta[property="og:video"]')?.content;
+            const ogImage = document.querySelector('meta[property="og:image"]')?.content;
+            if (ogVideo) result.push({ type: "video", url: ogVideo });
+            else if (
+                ogImage &&
+                !ogImage.includes("profile_pic") &&
+                !ogImage.includes("/s150x150") &&
+                !ogImage.includes("stp=")
+            )
+                result.push({ type: "image", url: ogImage });
+            return result;
+        });
+        mediaCandidates.push(...ogMedia);
+
+
+        // Final Decision: Filter and prioritize collected candidates
+        let finalMedia = [];
+        const collectedUrls = new Set();
+
+        // Sort by type (video preferred) and then by URL length (heuristic for quality)
+        mediaCandidates.sort((a, b) => {
+            if (a.type === 'video' && b.type === 'image') return -1;
+            if (a.type === 'image' && b.type === 'video') return 1;
+            return b.url.length - a.url.length; // Longest URL usually means higher resolution/quality
+        });
+
+        for (const candidate of mediaCandidates) {
+            if (candidate.url && !collectedUrls.has(candidate.url)) {
+                if (candidate.type === 'video') {
+                    finalMedia = [candidate]; // If we find a video, we primarily want that
+                    break; // Stop looking if we found a good video
+                } else if (candidate.type === 'image' && finalMedia.length === 0) { // Only add image if no video yet
+                    finalMedia.push(candidate);
+                    collectedUrls.add(candidate.url);
+                }
+            }
+        }
+
+        if (finalMedia.length === 0) {
+            console.log("[scrapeSingleMedia] No suitable media found after all attempts.");
+        } else {
+            console.log(`[scrapeSingleMedia] Final selected media: ${finalMedia[0].type} - ${finalMedia[0].url}`);
+        }
+
+        return finalMedia;
+    }
+
+    /**
+     * Fetches media information (images/videos, and metadata) from a given Instagram post URL.
+     * This method now manages its own browser context for each scrape operation to ensure isolation.
+     * @param {string} url - The URL of the Instagram post.
+     * @returns {object} An object containing success status and scraped data or error information.
+     */
+    async getMediaInfo(url) {
+        let page;
+        let interceptedVideoUrls = [];
+
+        try {
+            await this.launchBrowser();
+            page = await this.context.newPage();
+
+            await page.route("**/*.mp4", async (route) => {
+                const reqUrl = route.request().url();
+                if (reqUrl.endsWith(".mp4") && !reqUrl.includes("bytestart") && !reqUrl.includes("profile_pic")) {
+                    interceptedVideoUrls.push(reqUrl);
+                    console.log(`[Global Intercept] ${reqUrl}`);
+                }
+                await route.continue();
+            });
+
+            console.log(`Navigating to ${url}...`);
+            await page.goto(url, {
+                waitUntil: "domcontentloaded",
+                timeout: config.instagram.timeout,
+            });
+
+            const handledWebPrompt = await this.handleContinueOnWebPrompt(page);
+            if (handledWebPrompt) {
+                await page.waitForLoadState('domcontentloaded', { timeout: 10000 });
+                console.log("Resuming after 'Continue on web' navigation.");
+            }
+
+            await this.handleLoginPopup(page);
+            await this.handleCookieDialog(page);
+
+            const successLocator = page.locator('main[role="main"]');
+            const failureLocator = page.getByText(/Sorry, this page isn't available/i);
+            // New locator for the specific video error message
+            const videoErrorMessageLocator = page.getByText(/Sorry, we're having trouble playing this video/i);
+
+
+            console.log("Waiting for page content or error message...");
+            await Promise.race([
+                successLocator.waitFor({ state: 'visible', timeout: 15000 }),
+                failureLocator.waitFor({ state: 'visible', timeout: 15000 }),
+                videoErrorMessageLocator.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}) // Catch to prevent race breaking if not there
+            ]);
+
+            if (await failureLocator.isVisible()) {
+                throw new Error("The requested content is not available. It may have been deleted or the account is private.");
+            }
+
+            // *** Specific Handling for Video Playback Error ***
+            if (await videoErrorMessageLocator.isVisible()) {
+                console.warn("Detected 'Sorry, we're having trouble playing this video' error. Attempting alternative video extraction.");
+                const alternativeMedia = await this._handleVideoPlaybackError(page); // Call the dedicated handler
+                
+                // If alternative media is found, return it immediately
+                if (alternativeMedia.length > 0) {
+                    console.log("Successfully retrieved video from alternative methods for error case.");
+                    const metadata = await page.evaluate(() => {
+                        const usernameLink = document.querySelector('header a[href*="/"]');
+                        const username = usernameLink ? usernameLink.textContent : 'unknown';
+                        const captionDiv = document.querySelector('h1');
+                        const caption = captionDiv ? captionDiv.textContent : '';
+                        return { username, caption };
+                    });
+
+                    return {
+                        success: true,
+                        data: {
+                            items: alternativeMedia,
+                            is_carousel: false, // Assume single video for this specific error handling path
+                            username: metadata.username,
+                            caption: metadata.caption,
+                        }
+                    };
+                } else {
+                    console.error("Alternative video extraction failed for the error case. Proceeding with standard scraping flow, but it might still yield no media.");
+                    // Fall through to original scraping logic if alternative fails,
+                    // which might just result in no media found later.
+                }
+            }
+            // *** End Specific Handling ***
+
+
+            if (!await successLocator.isVisible()) {
+                throw new Error("Could not determine page content after 15 seconds.");
+            }
+
+            console.log("Page content loaded successfully (or specific error handled).");
+
+            const nextButtonSelector = 'button[aria-label="Next"]';
+            let isCarousel = (await page.locator(nextButtonSelector).count()) > 0;
+            let extractedItems = [];
+
+            if (isCarousel) {
+                console.log("Carousel post detected. Starting scraping...");
+                extractedItems = await this.clickAndScrapeCarousel(page);
+            } else {
+                console.log("Single media post detected. Scraping...");
+                extractedItems = await this.scrapeSingleMedia(page, interceptedVideoUrls);
+            }
+
+            if (extractedItems.length === 0) {
+                throw new Error("Scraping failed. No media items could be found on the page.");
+            }
+
+            const metadata = await page.evaluate(() => {
+                const usernameLink = document.querySelector('header a[href*="/"]');
+                const username = usernameLink ? usernameLink.textContent : 'unknown';
+                const captionDiv = document.querySelector('h1');
+                const caption = captionDiv ? captionDiv.textContent : '';
+                return { username, caption };
+            });
+
+            const responseData = {
+                items: extractedItems,
+                is_carousel: extractedItems.length > 1,
+                username: metadata.username,
+                caption: metadata.caption,
+            };
+
+            console.log("Scraping successful. Data:", responseData);
+            return { success: true, data: responseData };
+        } catch (error) {
+            console.error(`Error in getMediaInfo with Playwright: ${error.message}`);
+
+            try {
+                const screenshotPath = `error_screenshot_${Date.now()}.png`;
+                if (page && !page.isClosed()) {
+                    await page.screenshot({ path: screenshotPath, fullPage: true });
+                    console.log(`Screenshot for debugging saved to ${screenshotPath}`);
+                } else {
+                    console.log(`Could not take screenshot: Page was already closed or not initialized.`);
+                }
+            } catch (screenshotError) {
+                console.error('Failed to take error screenshot:', screenshotError.message);
+            }
+
+            return {
+                success: false,
+                error: `Failed to scrape media: ${error.message}`,
+            };
+        } finally {
+            try {
+                if (page && !page.isClosed()) {
+                    await page.close();
+                }
+            } catch (closeError) {
+                console.error('Failed to close page:', closeError.message);
+            }
+        }
+    }
+}
+
+module.exports = InstagramScraper;
+
+
+
+
+
+
+
+
+// Something went wrong issue
+const { chromium } = require("playwright");
+const config = require("../config/config");
+
+class InstagramScraper {
+    constructor() {
+        this.browser = null;
+        this.context = null;
+        this.userAgent = config.instagram.userAgent;
+        this.maxRetries = 3; // Maximum number of retries for operations (for page load)
+        this.retryDelay = 5000; // Delay between retries in milliseconds (increased for network errors)
+    }
+
+    /**
+     * Launches a new browser instance and creates a new context if they don't already exist.
+     */
+    async launchBrowser() {
+        if (!this.browser) {
+            try {
+                console.log("Launching new browser instance...");
+                this.browser = await chromium.launch({
+                    headless: true,
+                    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+                });
+
+                this.context = await this.browser.newContext({
+                    userAgent: this.userAgent,
+                    viewport: { width: 1280, height: 800 },
+                });
+            } catch (error) {
+                console.error('Failed to launch browser:', error.message);
+                if (this.browser) {
+                    try {
+                        await this.browser.close();
+                    } catch (closeError) {
+                        console.error('Failed to close browser after launch error:', closeError.message);
+                    }
+                    this.browser = null;
+                }
+                throw error;
+            }
+        }
+        return this.browser;
+    }
+
+    /**
+     * Closes the browser context and the browser instance if they exist.
+     */
+    async closeBrowser() {
+        try {
+            if (this.context) {
+                console.log("Closing browser context...");
+                await this.context.close();
+                this.context = null;
+            }
+        } catch (error) {
+            console.error('Failed to close browser context:', error.message);
+        }
+
+        try {
+            if (this.browser) {
+                console.log("Closing browser instance...");
+                await this.browser.close();
+                this.browser = null;
+            }
+        } catch (error) {
+            console.error('Failed to close browser instance:', error.message);
+        }
+    }
+
+    /**
+     * Extracts the shortcode from an Instagram URL.
+     * @param {string} url - The Instagram URL.
+     * @returns {string|null} The shortcode if found, otherwise null.
+     */
+    extractShortcode(url) {
+        const match = url.match(/(\/p\/|\/reel\/|\/reels\/)([a-zA-Z0-9_-]+)/);
+        return match ? match[2] : null;
+    }
+
+    /**
+     * Handles the Instagram cookie consent dialog if it appears.
+     * @param {Page} page - The Playwright Page object.
+     */
+    async handleCookieDialog(page) {
+        try {
+            console.log("Checking for cookie consent dialog...");
+            const allowButton = page.getByRole('button', { name: /Allow all cookies/i });
+            await allowButton.waitFor({ state: "visible", timeout: 2000 });
+            console.log('Found "Allow all cookies" button. Clicking it.');
+            await allowButton.click();
+            await page.waitForTimeout(1000);
+        } catch (error) {
+            console.log("No cookie dialog found or it timed out, proceeding...");
+        }
+    }
+
+    /**
+     * Handles the Instagram login popup if it appears after navigation.
+     * @param {Page} page - The Playwright Page object.
+     */
+    async handleLoginPopup(page) {
+        try {
+            const dialogSelector = 'div[role="dialog"]';
+            await page.waitForSelector(dialogSelector, { state: "visible", timeout: 3000 });
+            console.log("✅ Found login popup. Attempting to close...");
+
+            const closeButton = page.locator('div[role="dialog"] button[aria-label="Close"]');
+            const notNowButton = page.locator('div[role="dialog"] >> text="Not Now"');
+
+            if (await closeButton.isVisible()) {
+                console.log("Found specific close button. Clicking it.");
+                await closeButton.click({ timeout: 1500 });
+            } else if (await notNowButton.isVisible()) {
+                console.log("Found 'Not Now' button. Clicking it.");
+                await notNowButton.click({ timeout: 1500 });
+            } else {
+                console.log("No specific close button or 'Not Now' found, trying Escape key.");
+                await page.keyboard.press('Escape');
+            }
+            await page.waitForTimeout(500);
+            console.log("Popup closed successfully.");
+        } catch (error) {
+            console.log("No login popup was found or it failed to close, proceeding...");
+        }
+    }
+
+    /**
+     * Handles the "Watch this reel in the app" prompt by clicking "Continue on web".
+     * @param {Page} page - The Playwright Page object.
+     * @returns {boolean} True if the link was found and clicked, false otherwise.
+     */
+    async handleContinueOnWebPrompt(page) {
+        try {
+            console.log("Checking for 'Continue on web' prompt...");
+            const continueOnWebLink = page.getByRole('link', { name: /Continue on web/i });
+
+            await continueOnWebLink.waitFor({ state: "visible", timeout: 3000 });
+
+            console.log("Found 'Continue on web' link. Clicking it.");
+            await continueOnWebLink.click();
+            await page.waitForLoadState('domcontentloaded', { timeout: 5000 });
+            console.log("'Continue on web' clicked successfully.");
+            return true;
+        } catch (error) {
+            console.log("No 'Continue on web' prompt found or it timed out, proceeding...");
+            return false;
+        }
+    }
+
+    /**
+     * Helper function to extract relevant data from Instagram's embedded JSON.
+     * @param {Page} page - The Playwright Page object.
+     * @returns {object|null} An object with { type, url } if media found, otherwise null.
+     */
+    async _extractEmbeddedJsonData(page) {
+        try {
+            const jsonData = await page.evaluate(() => {
+                const jsonLdScript = document.querySelector('script[type="application/ld+json"]');
+                if (jsonLdScript && jsonLdScript.textContent) {
+                    try {
+                        const data = JSON.parse(jsonLdScript.textContent);
+                        if (data['@type'] === 'VideoObject' || data['@type'] === 'ImageObject' || data['@type'] === 'WebPage') {
+                            return data;
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse JSON-LD script:", e.message);
+                    }
+                }
+
+                const sharedDataScript = Array.from(document.querySelectorAll('script')).find(script => script.textContent.includes('window.__additionalDataLoaded'));
+                if (sharedDataScript && sharedDataScript.textContent) {
+                    try {
+                        const match = sharedDataScript.textContent.match(/window.__additionalDataLoaded\([^,]+,(\{.*?\})\);/);
+                        if (match && match[1]) {
+                            return JSON.parse(match[1]);
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse __additionalDataLoaded script:", e.message);
+                    }
+                }
+                return null;
+            });
+
+            if (jsonData) {
+                if (jsonData['@type'] === 'VideoObject' && jsonData.contentUrl) {
+                    return { type: 'video', url: jsonData.contentUrl };
+                } else if (jsonData['@type'] === 'ImageObject' && jsonData.contentUrl) {
+                    return { type: 'image', url: jsonData.contentUrl };
+                } else if (jsonData['@type'] === 'WebPage' && jsonData.mainEntity) {
+                    if (jsonData.mainEntity['@type'] === 'VideoObject' && jsonData.mainEntity.contentUrl) {
+                        return { type: 'video', url: jsonData.mainEntity.contentUrl };
+                    } else if (jsonData.mainEntity['@type'] === 'ImageObject' && jsonData.mainEntity.contentUrl) {
+                        return { type: 'image', url: jsonData.mainEntity.contentUrl };
+                    }
+                }
+
+                const shortcodeMedia = jsonData?.entry_data?.PostPage?.[0]?.graphql?.shortcode_media;
+                if (shortcodeMedia) {
+                    if (shortcodeMedia.is_video && shortcodeMedia.video_url) {
+                        return { type: 'video', url: shortcodeMedia.video_url };
+                    } else if (!shortcodeMedia.is_video && shortcodeMedia.display_resources && shortcodeMedia.display_resources.length > 0) {
+                        const highestResImage = shortcodeMedia.display_resources.sort((a, b) => b.config_width * b.config_height - a.config_width * a.config_height)[0];
+                        if (highestResImage && highestResImage.src) {
+                            return { type: 'image', url: highestResImage.src };
+                        }
+                    } else if (shortcodeMedia.display_url) {
+                        return { type: 'image', url: shortcodeMedia.display_url };
+                    }
+                }
+            }
+            return null;
+        } catch (e) {
+            console.error("Error in _extractEmbeddedJsonData:", e.message);
+            return null;
+        }
+    }
+
+    /**
+     * Handles cases where a video explicitly shows "Sorry, we're having trouble playing this video."
+     * @param {Page} page - The Playwright Page object.
+     * @returns {Array<object>} An array containing the single media item if found.
+     */
+    async _handleVideoPlaybackError(page) {
+        console.log("Attempting alternative video extraction due to playback error.");
+        let mediaFound = [];
+
+        let tempInterceptedVideos = [];
+        const routeHandler = async (route) => {
+            const reqUrl = route.request().url();
+            if (reqUrl.endsWith(".mp4") && !reqUrl.includes("bytestart") && !reqUrl.includes("profile_pic")) {
+                tempInterceptedVideos.push(reqUrl);
+                console.log(`[Video Error Recovery Intercept] ${reqUrl}`);
+            }
+            await route.continue();
+        };
+
+        await page.route("**/*.mp4", routeHandler);
+        try {
+            const learnMoreButton = page.getByText('Learn more', { exact: true });
+            if (await learnMoreButton.isVisible({ timeout: 1000 })) {
+                await learnMoreButton.click();
+                await page.waitForTimeout(1500);
+            }
+            await page.waitForTimeout(1000);
+        } catch (e) {
+            console.log("No 'Learn more' button or interaction attempt failed.");
+        } finally {
+            await page.unroute("**/*.mp4", routeHandler);
+        }
+
+        if (tempInterceptedVideos.length > 0) {
+            const unique = [...new Set(tempInterceptedVideos)];
+            const bestVideo = unique.sort((a, b) => b.length - a.length)[0];
+            if (bestVideo) {
+                console.log(`[Video Error Recovery] Found video via network intercept: ${bestVideo}`);
+                mediaFound.push({ type: "video", url: bestVideo });
+                return mediaFound;
+            }
+        }
+
+        const jsonMedia = await this._extractEmbeddedJsonData(page);
+        if (jsonMedia && jsonMedia.type === 'video' && jsonMedia.url && !jsonMedia.url.includes("profile_pic")) {
+            console.log(`[Video Error Recovery] Found video via JSON data: ${jsonMedia.url}`);
+            mediaFound.push(jsonMedia);
+            return mediaFound;
+        }
+
+        const ogVideo = await page.evaluate(() => document.querySelector('meta[property="og:video"]')?.content);
+        if (ogVideo) {
+            console.log(`[Video Error Recovery] Found video via OG meta: ${ogVideo}`);
+            mediaFound.push({ type: "video", url: ogVideo });
+            return mediaFound;
+        }
+
+        console.warn("[Video Error Recovery] Failed to find alternative video URL after specific error detection.");
+        return [];
+    }
+
+    /**
+     * Scrapes media from a carousel post by clicking through each item.
+     * @param {Page} page - The Playwright Page object.
+     * @returns {Array<object>} An array of collected media items (image/video URLs).
+     */
+    async clickAndScrapeCarousel(page) {
+        const nextButtonSelector = 'button[aria-label="Next"]';
+        const listSelector = "ul._acay";
+        const collectedMedia = new Map();
+
+        let slideInterceptedVideoUrls = [];
+
+        await page.route("**/*.mp4", async (route) => {
+            const reqUrl = route.request().url();
+            if (reqUrl.endsWith(".mp4") && !reqUrl.includes("bytestart") && !reqUrl.includes("profile_pic")) {
+                slideInterceptedVideoUrls.push(reqUrl);
+                console.log(`[Intercepted for slide] ${reqUrl}`);
+            }
+            await route.continue();
+        });
+
+        try {
+            while (true) {
+                slideInterceptedVideoUrls = [];
+                await page.waitForTimeout(1000);
+
+                const currentMediaOnPage = await page.evaluate((selector) => {
+                    const results = [];
+                    const list = document.querySelector(selector);
+                    if (!list) return results;
+
+                    const listItems = list.querySelectorAll("li._acaz");
+                    listItems.forEach((item) => {
+                        const video = item.querySelector("video");
+                        if (video) {
+                            const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                            if (dataSrc && !dataSrc.startsWith("blob:")) {
+                                results.push({ type: "video", url: dataSrc });
+                            } else if (video.src && !video.src.startsWith("blob:")) {
+                                results.push({ type: "video", url: video.src });
+                            }
+                            const sources = video.querySelectorAll('source');
+                            for (const source of sources) {
+                                if (source.src && !source.src.startsWith("blob:")) {
+                                    results.push({ type: "video", url: source.src });
+                                    break;
+                                }
+                            }
+                        }
+                        const img = item.querySelector("img.x5yr21d");
+                        if (img && img.src) {
+                            if (!img.src.includes("profile_pic") &&
+                                !img.src.includes("/s150x150") &&
+                                !img.src.includes("/s320x320") &&
+                                !img.src.includes("/s240x240") &&
+                                !img.src.includes("/vp/") &&
+                                !img.src.includes("stp=")) {
+                                results.push({ type: "image", url: img.src });
+                            }
+                        }
+                    });
+                    return results;
+                }, listSelector);
+
+                if (slideInterceptedVideoUrls.length > 0) {
+                    const uniqueIntercepted = [...new Set(slideInterceptedVideoUrls)];
+                    const bestInterceptedVideo = uniqueIntercepted.sort((a, b) => b.length - a.length)[0];
+
+                    if (bestInterceptedVideo) {
+                        const existingVideoIndex = currentMediaOnPage.findIndex(item => item.type === 'video');
+                        if (existingVideoIndex !== -1) {
+                            currentMediaOnPage[existingVideoIndex] = { type: "video", url: bestInterceptedVideo };
+                            console.log("Replaced DOM video with intercepted MP4 for current slide.");
+                        } else {
+                            currentMediaOnPage.push({ type: "video", url: bestInterceptedVideo });
+                            console.log("Added intercepted MP4 as new media for current slide.");
+                        }
+                    }
+                }
+
+                currentMediaOnPage.forEach((media) => {
+                    if (media.url && !collectedMedia.has(media.url)) {
+                        console.log(`[+] Found new media: ${media.type} at ${collectedMedia.size + 1}`);
+                        collectedMedia.set(media.url, media);
+                    }
+                });
+
+                const nextButton = page.locator(nextButtonSelector);
+                await nextButton.waitFor({ state: "visible", timeout: 2000 });
+                await nextButton.click();
+                await page.waitForTimeout(500);
+            }
+        } catch (error) {
+            console.log("Reached the end of the carousel or timed out. Finalizing collection.");
+            const lastMediaOnPage = await page.evaluate((selector) => {
+                const results = [];
+                const list = document.querySelector(selector);
+                if (!list) return results;
+                const listItems = list.querySelectorAll("li._acaz");
+                listItems.forEach((item) => {
+                    const video = item.querySelector("video");
+                    if (video) {
+                        const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                        if (dataSrc && !dataSrc.startsWith("blob:")) {
+                            results.push({ type: "video", url: dataSrc });
+                        } else if (video.src && !video.src.startsWith("blob:")) {
+                            results.push({ type: "video", url: video.src });
+                        }
+                        const sources = video.querySelectorAll('source');
+                        for (const source of sources) {
+                            if (source.src && !source.src.startsWith("blob:")) {
+                                results.push({ type: "video", url: source.src });
+                                break;
+                            }
+                        }
+                    }
+                    const img = item.querySelector("img.x5yr21d");
+                    if (img && img.src) {
+                        if (!img.src.includes("profile_pic") &&
+                            !img.src.includes("/s150x150") &&
+                            !img.src.includes("/s320x320") &&
+                            !img.src.includes("/s240x240") &&
+                            !img.src.includes("/vp/") &&
+                            !img.src.includes("stp=")) {
+                            results.push({ type: "image", url: img.src });
+                        }
+                    }
+                });
+                return results;
+            }, listSelector);
+
+            if (slideInterceptedVideoUrls.length > 0) {
+                const uniqueIntercepted = [...new Set(slideInterceptedVideoUrls)];
+                const bestInterceptedVideo = uniqueIntercepted.sort((a, b) => b.length - a.length)[0];
+                if (bestInterceptedVideo) {
+                    const existingVideoIndex = lastMediaOnPage.findIndex(item => item.type === 'video');
+                    if (existingVideoIndex !== -1) {
+                        lastMediaOnPage[existingVideoIndex] = { type: "video", url: bestInterceptedVideo };
+                    } else {
+                        lastMediaOnPage.push({ type: "video", url: bestInterceptedVideo });
+                    }
+                }
+            }
+
+            lastMediaOnPage.forEach((media) => {
+                if (media.url && !collectedMedia.has(media.url)) {
+                    console.log(`[+] Found final media: ${media.type} at ${collectedMedia.size + 1}`);
+                    collectedMedia.set(media.url, media);
+                }
+            });
+        } finally {
+            await page.unroute("**/*.mp4");
+        }
+
+        console.log(`Total unique media items found: ${collectedMedia.size}.`);
+        return Array.from(collectedMedia.values());
+    }
+
+    /**
+     * Scrapes media from a single image/video post, prioritizing video.
+     * @param {Page} page - The Playwright Page object.
+     * @param {Array<string>} interceptedVideoUrls - List of video URLs intercepted for this page.
+     * @returns {Array<object>} An array containing the single media item.
+     */
+    async scrapeSingleMedia(page, interceptedVideoUrls) {
+        let mediaCandidates = [];
+
+        const domMedia = await page.evaluate(() => {
+            const results = [];
+            const video = document.querySelector("video");
+            if (video) {
+                const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                if (dataSrc && !dataSrc.startsWith("blob:")) {
+                    results.push({ type: "video", url: dataSrc });
+                } else if (video.src && !video.src.startsWith("blob:")) {
+                    results.push({ type: "video", url: video.src });
+                }
+                const sources = video.querySelectorAll('source');
+                for (const source of sources) {
+                    if (source.src && !source.src.startsWith("blob:")) {
+                        results.push({ type: "video", url: source.src });
+                        break;
+                    }
+                }
+            }
+
+            const images = Array.from(document.querySelectorAll("img"))
+                .map((img) => img.src)
+                .filter(
+                    (src) =>
+                        src &&
+                        !src.includes("profile_pic") &&
+                        !src.includes("/s150x150") &&
+                        !src.includes("/s320x320") &&
+                        !src.includes("/s240x240") &&
+                        !src.includes("/vp/") &&
+                        !src.includes("stp=")
+                );
+            if (images.length) {
+                const bestImage = images.sort((a, b) => b.length - a.length)[0];
+                results.push({ type: "image", url: bestImage });
+            }
+            return results;
+        });
+        mediaCandidates.push(...domMedia);
+
+
+        const playButton = page.locator('div[role="button"][aria-label*="Play"]');
+        if (await playButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+            console.log("Attempting to click play button...");
+            await playButton.click().catch(() => { });
+            await page.waitForTimeout(2000);
+            const mediaAfterClick = await page.evaluate(() => {
+                 const results = [];
+                 const video = document.querySelector("video");
+                 if (video) {
+                     const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                     if (dataSrc && !dataSrc.startsWith("blob:")) {
+                         results.push({ type: "video", url: dataSrc });
+                     } else if (video.src && !video.src.startsWith("blob:")) {
+                         results.push({ type: "video", url: video.src });
+                     }
+                     const sources = video.querySelectorAll('source');
+                     for (const source of sources) {
+                         if (source.src && !source.src.startsWith("blob:")) {
+                             results.push({ type: "video", url: source.src });
+                             break;
+                         }
+                     }
+                 }
+                 return results;
+            });
+            mediaCandidates.push(...mediaAfterClick);
+        }
+
+        await page.mouse.wheel(0, 200);
+        await page.waitForTimeout(2000);
+        const mediaAfterScroll = await page.evaluate(() => {
+            const results = [];
+            const video = document.querySelector("video");
+            if (video) {
+                const dataSrc = video.getAttribute('data-src') || video.getAttribute('data-original-src');
+                if (dataSrc && !dataSrc.startsWith("blob:")) {
+                    results.push({ type: "video", url: dataSrc });
+                } else if (video.src && !video.src.startsWith("blob:")) {
+                    results.push({ type: "video", url: video.src });
+                }
+                const sources = video.querySelectorAll('source');
+                for (const source of sources) {
+                    if (source.src && !source.src.startsWith("blob:")) {
+                        results.push({ type: "video", url: source.src });
+                        break;
+                    }
+                }
+            }
+            return results;
+        });
+        mediaCandidates.push(...mediaAfterScroll);
+
+
+        if (interceptedVideoUrls.length > 0) {
+            const uniqueIntercepted = [...new Set(interceptedVideoUrls)];
+            const bestInterceptedVideo = uniqueIntercepted.sort((a, b) => b.length - a.length)[0];
+            if (bestInterceptedVideo) {
+                console.log(`[scrapeSingleMedia] Adding intercepted MP4 as candidate: ${bestInterceptedVideo}`);
+                mediaCandidates.push({ type: "video", url: bestInterceptedVideo });
+            }
+        }
+
+        const jsonMedia = await this._extractEmbeddedJsonData(page);
+        if (jsonMedia) {
+            if (jsonMedia.url && !jsonMedia.url.includes("profile_pic") && !jsonMedia.url.includes("/s150x150")) {
+                console.log(`[scrapeSingleMedia] Adding JSON-extracted media as candidate: ${jsonMedia.type} - ${jsonMedia.url}`);
+                mediaCandidates.push(jsonMedia);
+            }
+        }
+
+        const ogMedia = await page.evaluate(() => {
+            const result = [];
+            const ogVideo = document.querySelector('meta[property="og:video"]')?.content;
+            const ogImage = document.querySelector('meta[property="og:image"]')?.content;
+            if (ogVideo) result.push({ type: "video", url: ogVideo });
+            else if (
+                ogImage &&
+                !ogImage.includes("profile_pic") &&
+                !ogImage.includes("/s150x150") &&
+                !ogImage.includes("stp=")
+            )
+                result.push({ type: "image", url: ogImage });
+            return result;
+        });
+        mediaCandidates.push(...ogMedia);
+
+
+        let finalMedia = [];
+        const collectedUrls = new Set();
+
+        mediaCandidates.sort((a, b) => {
+            if (a.type === 'video' && b.type === 'image') return -1;
+            if (a.type === 'image' && b.type === 'video') return 1;
+            return b.url.length - a.url.length;
+        });
+
+        for (const candidate of mediaCandidates) {
+            if (candidate.url && !collectedUrls.has(candidate.url)) {
+                if (candidate.type === 'video') {
+                    finalMedia = [candidate];
+                    break;
+                } else if (candidate.type === 'image' && finalMedia.length === 0) {
+                    finalMedia.push(candidate);
+                    collectedUrls.add(candidate.url);
+                }
+            }
+        }
+
+        if (finalMedia.length === 0) {
+            console.log("[scrapeSingleMedia] No suitable media found after all attempts.");
+        } else {
+            console.log(`[scrapeSingleMedia] Final selected media: ${finalMedia[0].type} - ${finalMedia[0].url}`);
+        }
+
+        return finalMedia;
+    }
+
+    /**
+     * Attempts to reload the page a few times if a "Something went wrong" error is detected.
+     * @param {Page} page - The Playwright Page object.
+     * @param {string} url - The original URL to reload.
+     * @param {number} retriesLeft - Number of retries remaining.
+     * @returns {boolean} True if the page successfully loaded, false otherwise.
+     */
+    async _reloadPageWithRetries(page, url, retriesLeft) {
+        if (retriesLeft <= 0) {
+            console.error("Max retries reached for 'Something went wrong' page. Giving up.");
+            return false;
+        }
+
+        console.log(`Page failed to load. Retrying... (${this.maxRetries - retriesLeft + 1}/${this.maxRetries})`);
+        await page.waitForTimeout(this.retryDelay); // Wait before retrying
+
+        try {
+            // Attempt to click the "Reload page" button if it's there
+            const reloadButton = page.getByRole('button', { name: /Reload page/i });
+            if (await reloadButton.isVisible({ timeout: 2000 })) {
+                console.log("Clicking 'Reload page' button.");
+                await reloadButton.click();
+            } else {
+                // Otherwise, perform a standard page reload
+                console.log("Performing page.reload().");
+                await page.reload({ waitUntil: "domcontentloaded", timeout: config.instagram.timeout });
+            }
+
+            // After reload, check if the error message is still present
+            const errorLocator = page.getByText(/Something went wrong/i);
+            const successLocator = page.locator('main[role="main"]');
+
+            // Wait for either success or the error again
+            await Promise.race([
+                successLocator.waitFor({ state: 'visible', timeout: 15000 }),
+                errorLocator.waitFor({ state: 'visible', timeout: 15000 }),
+            ]);
+
+            if (await successLocator.isVisible()) {
+                console.log("Page successfully reloaded after 'Something went wrong' error.");
+                return true;
+            } else if (await errorLocator.isVisible()) {
+                return await this._reloadPageWithRetries(page, url, retriesLeft - 1); // Recurse for more retries
+            } else {
+                // If neither is visible, it's an unknown state, assume failure and retry
+                console.warn("Unknown page state after reload, attempting another retry.");
+                return await this._reloadPageWithRetries(page, url, retriesLeft - 1);
+            }
+        } catch (e) {
+            console.error(`Error during reload attempt: ${e.message}. Retrying...`);
+            return await this._reloadPageWithRetries(page, url, retriesLeft - 1);
+        }
+    }
+
+
+    /**
+     * Fetches media information (images/videos, and metadata) from a given Instagram post URL.
+     * @param {string} url - The URL of the Instagram post.
+     * @returns {object} An object containing success status and scraped data or error information.
+     */
+    async getMediaInfo(url) {
+        let page;
+        let interceptedVideoUrls = [];
+
+        try {
+            await this.launchBrowser();
+            page = await this.context.newPage();
+
+            await page.route("**/*.mp4", async (route) => {
+                const reqUrl = route.request().url();
+                if (reqUrl.endsWith(".mp4") && !reqUrl.includes("bytestart") && !reqUrl.includes("profile_pic")) {
+                    interceptedVideoUrls.push(reqUrl);
+                    console.log(`[Global Intercept] ${reqUrl}`);
+                }
+                await route.continue();
+            });
+
+            console.log(`Navigating to ${url}...`);
+            await page.goto(url, {
+                waitUntil: "domcontentloaded",
+                timeout: config.instagram.timeout,
+            });
+
+            // --- Handle initial page load errors (like "Something went wrong") ---
+            const initialErrorLocator = page.getByText(/Something went wrong/i);
+            const initialSuccessLocator = page.locator('main[role="main"]');
+
+            // Wait for either the main content, an "unavailable" error, or the "something went wrong" error
+            await Promise.race([
+                initialSuccessLocator.waitFor({ state: 'visible', timeout: 15000 }),
+                page.getByText(/Sorry, this page isn't available/i).waitFor({ state: 'visible', timeout: 15000 }),
+                initialErrorLocator.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}), // Allow this to fail if not present
+            ]);
+
+            if (await initialErrorLocator.isVisible()) {
+                console.warn("Initial page load resulted in 'Something went wrong'. Attempting retries.");
+                const reloadSuccess = await this._reloadPageWithRetries(page, url, this.maxRetries);
+                if (!reloadSuccess) {
+                    throw new Error("Failed to load page after multiple retries due to 'Something went wrong'.");
+                }
+            }
+            // --- End initial page load error handling ---
+
+
+            const handledWebPrompt = await this.handleContinueOnWebPrompt(page);
+            if (handledWebPrompt) {
+                await page.waitForLoadState('domcontentloaded', { timeout: 10000 });
+                console.log("Resuming after 'Continue on web' navigation.");
+            }
+
+            await this.handleLoginPopup(page);
+            await this.handleCookieDialog(page);
+
+            const failureLocator = page.getByText(/Sorry, this page isn't available/i);
+            const videoErrorMessageLocator = page.getByText(/Sorry, we're having trouble playing this video/i);
+
+            // Wait again for content or specific errors after popups/dialogs
+            await Promise.race([
+                initialSuccessLocator.waitFor({ state: 'visible', timeout: 15000 }),
+                failureLocator.waitFor({ state: 'visible', timeout: 15000 }),
+                videoErrorMessageLocator.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {})
+            ]);
+
+            if (await failureLocator.isVisible()) {
+                throw new Error("The requested content is not available. It may have been deleted or the account is private.");
+            }
+
+            if (await videoErrorMessageLocator.isVisible()) {
+                console.warn("Detected 'Sorry, we're having trouble playing this video' error. Attempting alternative video extraction.");
+                const alternativeMedia = await this._handleVideoPlaybackError(page);
+
+                if (alternativeMedia.length > 0) {
+                    console.log("Successfully retrieved video from alternative methods for error case.");
+                    const metadata = await page.evaluate(() => {
+                        const usernameLink = document.querySelector('header a[href*="/"]');
+                        const username = usernameLink ? usernameLink.textContent : 'unknown';
+                        const captionDiv = document.querySelector('h1');
+                        const caption = captionDiv ? captionDiv.textContent : '';
+                        return { username, caption };
+                    });
+
+                    return {
+                        success: true,
+                        data: {
+                            items: alternativeMedia,
+                            is_carousel: false,
+                            username: metadata.username,
+                            caption: metadata.caption,
+                        }
+                    };
+                } else {
+                    console.error("Alternative video extraction failed for the error case. Proceeding with standard scraping flow, but it might still yield no media.");
+                }
+            }
+
+            // Final check that the main content is visible before proceeding
+            if (!await initialSuccessLocator.isVisible()) {
+                throw new Error("Could not determine page content after all initial checks and retries.");
+            }
+
+            console.log("Page content loaded successfully (or specific error handled).");
+
+            const nextButtonSelector = 'button[aria-label="Next"]';
+            let isCarousel = (await page.locator(nextButtonSelector).count()) > 0;
+            let extractedItems = [];
+
+            if (isCarousel) {
+                console.log("Carousel post detected. Starting scraping...");
+                extractedItems = await this.clickAndScrapeCarousel(page);
+            } else {
+                console.log("Single media post detected. Scraping...");
+                extractedItems = await this.scrapeSingleMedia(page, interceptedVideoUrls);
+            }
+
+            if (extractedItems.length === 0) {
+                throw new Error("Scraping failed. No media items could be found on the page.");
+            }
+
+            const metadata = await page.evaluate(() => {
+                const usernameLink = document.querySelector('header a[href*="/"]');
+                const username = usernameLink ? usernameLink.textContent : 'unknown';
+                const captionDiv = document.querySelector('h1');
+                const caption = captionDiv ? captionDiv.textContent : '';
+                return { username, caption };
+            });
+
+            const responseData = {
+                items: extractedItems,
+                is_carousel: extractedItems.length > 1,
+                username: metadata.username,
+                caption: metadata.caption,
+            };
+
+            console.log("Scraping successful. Data:", responseData);
+            return { success: true, data: responseData };
+        } catch (error) {
+            console.error(`Error in getMediaInfo with Playwright: ${error.message}`);
+
+            try {
+                const screenshotPath = `error_screenshot_${Date.now()}.png`;
+                if (page && !page.isClosed()) {
+                    await page.screenshot({ path: screenshotPath, fullPage: true });
+                    console.log(`Screenshot for debugging saved to ${screenshotPath}`);
+                } else {
+                    console.log(`Could not take screenshot: Page was already closed or not initialized.`);
+                }
+            } catch (screenshotError) {
+                console.error('Failed to take error screenshot:', screenshotError.message);
+            }
+
+            return {
+                success: false,
+                error: `Failed to scrape media: ${error.message}`,
+            };
+        } finally {
+            try {
+                if (page && !page.isClosed()) {
+                    await page.close();
+                }
+            } catch (closeError) {
+                console.error('Failed to close page:', closeError.message);
+            }
+        }
+    }
 }
 
 module.exports = InstagramScraper;
