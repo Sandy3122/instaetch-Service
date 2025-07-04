@@ -1,4 +1,4 @@
-#!/bin/bash
+  #!/bin/bash
 
 # Production Deployment Script for InstaFetch Backend
 # This script deploys the latest version from Docker Hub

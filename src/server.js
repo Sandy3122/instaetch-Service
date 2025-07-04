@@ -844,7 +844,7 @@ class Server {
         this.setupErrorHandling(); // <--- Moved this call here
 
         return new Promise((resolve, reject) => {
-            this.server = this.app.listen(this.port, () => {
+            this.server = this.app.listen(this.port, '0.0.0.0', () => {
                 console.log(`InstaFetch API server running on port ${this.port}`);
                 console.log(`Environment: ${config.server.nodeEnv}`);
                 console.log(`Health Check: http://localhost:${this.port}/api/health`);

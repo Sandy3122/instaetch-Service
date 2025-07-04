@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -ex
+
+
 # Define variables
 IMAGE_NAME="instagram-scraper"
 DOCKER_USER="sandeepseeram22"
