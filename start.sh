@@ -78,6 +78,17 @@ else
     echo "✅ Dependencies already installed."
 fi
 
+# Logging configuration
+export LOG_LEVEL=${LOG_LEVEL:-"info"}
+export LOG_MEDIA=${LOG_MEDIA:-"false"}
+export LOG_SESSION=${LOG_SESSION:-"false"}
+export LOG_INTERCEPT=${LOG_INTERCEPT:-"false"}
+
+echo "Starting InstaFetch Backend with logging level: $LOG_LEVEL"
+echo "Media logs: $LOG_MEDIA"
+echo "Session logs: $LOG_SESSION"
+echo "Intercept logs: $LOG_INTERCEPT"
+
 # Check if running in production mode
 if [ "$NODE_ENV" = "production" ]; then
     echo "🏭 Starting in PRODUCTION mode with PM2..."

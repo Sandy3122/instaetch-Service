@@ -467,3 +467,52 @@ For support and questions:
 - Comprehensive caching system
 - Security and rate limiting
 - Full test suite 
+
+## Logging Configuration
+
+The backend uses a configurable logging system to reduce console output. You can control the verbosity using environment variables:
+
+### Environment Variables
+
+- `LOG_LEVEL`: Set the overall log level (error, warn, info, debug)
+- `LOG_MEDIA`: Enable/disable media scraping logs (true/false)
+- `LOG_SESSION`: Enable/disable session management logs (true/false)
+- `LOG_INTERCEPT`: Enable/disable request interception logs (true/false)
+
+### Examples
+
+**Minimal logging (production):**
+```bash
+LOG_LEVEL=warn
+LOG_MEDIA=false
+LOG_SESSION=false
+LOG_INTERCEPT=false
+```
+
+**Debug logging (development):**
+```bash
+LOG_LEVEL=debug
+LOG_MEDIA=true
+LOG_SESSION=true
+LOG_INTERCEPT=true
+```
+
+**Selective logging:**
+```bash
+LOG_LEVEL=info
+LOG_MEDIA=true      # Only show media scraping logs
+LOG_SESSION=false   # Hide session logs
+LOG_INTERCEPT=false # Hide intercept logs
+```
+
+### Quick Commands
+
+To start with minimal logging:
+```bash
+LOG_LEVEL=warn npm start
+```
+
+To start with debug logging:
+```bash
+LOG_LEVEL=debug LOG_MEDIA=true LOG_SESSION=true npm start
+``` 

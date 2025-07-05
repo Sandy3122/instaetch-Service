@@ -75,184 +75,184 @@
 //     }
 //   }
 
-//   async clickAndScrapeCarousel(page) {
-//     const nextButtonSelector = 'button[aria-label="Next"]';
-//     const listSelector = "ul._acay";
-//     const collectedMedia = new Map();
+  // async clickAndScrapeCarousel(page) {
+  //   const nextButtonSelector = 'button[aria-label="Next"]';
+  //   const listSelector = "ul._acay";
+  //   const collectedMedia = new Map();
 
-//     while (true) {
-//       try {
-//         const currentMediaOnPage = await page.evaluate((selector) => {
-//           const results = [];
-//           const list = document.querySelector(selector);
-//           if (!list) return results;
+  //   while (true) {
+  //     try {
+  //       const currentMediaOnPage = await page.evaluate((selector) => {
+  //         const results = [];
+  //         const list = document.querySelector(selector);
+  //         if (!list) return results;
 
-//           const listItems = list.querySelectorAll("li._acaz");
-//           listItems.forEach((item) => {
-//             const video = item.querySelector("video");
-//             if (video && video.src) {
-//               results.push({ type: "video", url: video.src });
-//             }
-//             const img = item.querySelector("img.x5yr21d");
-//             if (img && img.src) {
-//               results.push({ type: "image", url: img.src });
-//             }
-//           });
-//           return results;
-//         }, listSelector);
+  //         const listItems = list.querySelectorAll("li._acaz");
+  //         listItems.forEach((item) => {
+  //           const video = item.querySelector("video");
+  //           if (video && video.src) {
+  //             results.push({ type: "video", url: video.src });
+  //           }
+  //           const img = item.querySelector("img.x5yr21d");
+  //           if (img && img.src) {
+  //             results.push({ type: "image", url: img.src });
+  //           }
+  //         });
+  //         return results;
+  //       }, listSelector);
 
-//         currentMediaOnPage.forEach((media) => {
-//           if (media.url && !collectedMedia.has(media.url)) {
-//             console.log(
-//               `[+] Found new media: ${media.type} at ${collectedMedia.size + 1}`
-//             );
-//             collectedMedia.set(media.url, media);
-//           }
-//         });
+  //       currentMediaOnPage.forEach((media) => {
+  //         if (media.url && !collectedMedia.has(media.url)) {
+  //           console.log(
+  //             `[+] Found new media: ${media.type} at ${collectedMedia.size + 1}`
+  //           );
+  //           collectedMedia.set(media.url, media);
+  //         }
+  //       });
 
-//         const nextButton = page.locator(nextButtonSelector);
-//         await nextButton.waitFor({ state: "visible", timeout: 2000 });
-//         await nextButton.click();
-//         await page.waitForTimeout(500);
-//       } catch (error) {
-//         console.log(
-//           "✅ Reached the end of the carousel. Finalizing collection."
-//         );
-//         const lastMediaOnPage = await page.evaluate((selector) => {
-//           const results = [];
-//           const list = document.querySelector(selector);
-//           if (!list) return results;
-//           const listItems = list.querySelectorAll("li._acaz");
-//           listItems.forEach((item) => {
-//             const video = item.querySelector("video");
-//             if (video && video.src)
-//               results.push({ type: "video", url: video.src });
-//             const img = item.querySelector("img.x5yr21d");
-//             if (img && img.src) results.push({ type: "image", url: img.src });
-//           });
-//           return results;
-//         }, listSelector);
+  //       const nextButton = page.locator(nextButtonSelector);
+  //       await nextButton.waitFor({ state: "visible", timeout: 2000 });
+  //       await nextButton.click();
+  //       await page.waitForTimeout(500);
+  //     } catch (error) {
+  //       console.log(
+  //         "✅ Reached the end of the carousel. Finalizing collection."
+  //       );
+  //       const lastMediaOnPage = await page.evaluate((selector) => {
+  //         const results = [];
+  //         const list = document.querySelector(selector);
+  //         if (!list) return results;
+  //         const listItems = list.querySelectorAll("li._acaz");
+  //         listItems.forEach((item) => {
+  //           const video = item.querySelector("video");
+  //           if (video && video.src)
+  //             results.push({ type: "video", url: video.src });
+  //           const img = item.querySelector("img.x5yr21d");
+  //           if (img && img.src) results.push({ type: "image", url: img.src });
+  //         });
+  //         return results;
+  //       }, listSelector);
 
-//         lastMediaOnPage.forEach((media) => {
-//           if (media.url && !collectedMedia.has(media.url)) {
-//             console.log(
-//               `[+] Found final media: ${media.type} at ${
-//                 collectedMedia.size + 1
-//               }`
-//             );
-//             collectedMedia.set(media.url, media);
-//           }
-//         });
+  //       lastMediaOnPage.forEach((media) => {
+  //         if (media.url && !collectedMedia.has(media.url)) {
+  //           console.log(
+  //             `[+] Found final media: ${media.type} at ${
+  //               collectedMedia.size + 1
+  //             }`
+  //           );
+  //           collectedMedia.set(media.url, media);
+  //         }
+  //       });
 
-//         break;
-//       }
-//     }
+  //       break;
+  //     }
+  //   }
 
 //     console.log(`Total unique media items found: ${collectedMedia.size}.`);
 //     return Array.from(collectedMedia.values());
 //   }
 
-  // async scrapeSingleMedia(page) {
-  //   const tryGetMedia = async () => {
-  //     return await page.evaluate(() => {
-  //       const results = [];
+//   async scrapeSingleMedia(page) {
+//     const tryGetMedia = async () => {
+//       return await page.evaluate(() => {
+//         const results = [];
   
-  //       // Priority 1: Get video if available (not blob)
-  //       const video = document.querySelector("video");
-  //       if (video && video.src && !video.src.startsWith("blob:")) {
-  //         results.push({ type: "video", url: video.src });
-  //       }
+//         // Priority 1: Get video if available (not blob)
+//         const video = document.querySelector("video");
+//         if (video && video.src && !video.src.startsWith("blob:")) {
+//           results.push({ type: "video", url: video.src });
+//         }
   
-  //       // Priority 2: Clean images (non-thumbnail)
-  //       const images = Array.from(document.querySelectorAll("img"))
-  //         .map((img) => img.src)
-  //         .filter(
-  //           (src) =>
-  //             src &&
-  //             !src.includes("profile_pic") &&
-  //             !src.includes("/s150x150") &&
-  //             !src.includes("/s320x320") &&
-  //             !src.includes("/s240x240") &&
-  //             !src.includes("/vp/") &&
-  //             !src.includes("stp=")
-  //         );
+//         // Priority 2: Clean images (non-thumbnail)
+//         const images = Array.from(document.querySelectorAll("img"))
+//           .map((img) => img.src)
+//           .filter(
+//             (src) =>
+//               src &&
+//               !src.includes("profile_pic") &&
+//               !src.includes("/s150x150") &&
+//               !src.includes("/s320x320") &&
+//               !src.includes("/s240x240") &&
+//               !src.includes("/vp/") &&
+//               !src.includes("stp=")
+//           );
   
-  //       if (images.length) {
-  //         results.push({ type: "image", url: images[0] });
-  //       }
+//         if (images.length) {
+//           results.push({ type: "image", url: images[0] });
+//         }
   
-  //       return results;
-  //     });
-  //   };
+//         return results;
+//       });
+//     };
   
-  //   let media = await tryGetMedia();
-  //   if (media.length && media[0].type === "video") return media;
+//     let media = await tryGetMedia();
+//     if (media.length && media[0].type === "video") return media;
   
-  //   // Priority 3: Try clicking play if present
-  //   const playButton = page.locator('div[role="button"][aria-label*="Play"]');
-  //   if (await playButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-  //     await playButton.click().catch(() => {});
-  //     await page.waitForTimeout(2000);
-  //     media = await tryGetMedia();
-  //     if (media.length && media[0].type === "video") return media;
-  //   }
+//     // Priority 3: Try clicking play if present
+//     const playButton = page.locator('div[role="button"][aria-label*="Play"]');
+//     if (await playButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+//       await playButton.click().catch(() => {});
+//       await page.waitForTimeout(2000);
+//       media = await tryGetMedia();
+//       if (media.length && media[0].type === "video") return media;
+//     }
   
-  //   // Priority 4: Scroll to trigger lazy-load
-  //   await page.mouse.wheel(0, 200);
-  //   await page.waitForTimeout(2000);
-  //   media = await tryGetMedia();
-  //   if (media.length && media[0].type === "video") return media;
+//     // Priority 4: Scroll to trigger lazy-load
+//     await page.mouse.wheel(0, 200);
+//     await page.waitForTimeout(2000);
+//     media = await tryGetMedia();
+//     if (media.length && media[0].type === "video") return media;
   
-  //   // Priority 5: Directly target known image containers
-  //   const fallbackImage = await page.evaluate(() => {
-  //     const results = [];
+//     // Priority 5: Directly target known image containers
+//     const fallbackImage = await page.evaluate(() => {
+//       const results = [];
   
-  //     // div._aagv > img.x5yr21d (used in many single image posts)
-  //     const container = document.querySelector("div._aagv");
-  //     if (container) {
-  //       const img = container.querySelector("img.x5yr21d");
-  //       if (img && img.src) {
-  //         results.push({ type: "image", url: img.src });
-  //         return results;
-  //       }
-  //     }
+//       // div._aagv > img.x5yr21d (used in many single image posts)
+//       const container = document.querySelector("div._aagv");
+//       if (container) {
+//         const img = container.querySelector("img.x5yr21d");
+//         if (img && img.src) {
+//           results.push({ type: "image", url: img.src });
+//           return results;
+//         }
+//       }
   
-  //     // Fallback: any main-area image with correct class
-  //     const mainImg = document.querySelector("main img.x5yr21d");
-  //     if (mainImg && mainImg.src) {
-  //       results.push({ type: "image", url: mainImg.src });
-  //     }
+//       // Fallback: any main-area image with correct class
+//       const mainImg = document.querySelector("main img.x5yr21d");
+//       if (mainImg && mainImg.src) {
+//         results.push({ type: "image", url: mainImg.src });
+//       }
   
-  //     return results;
-  //   });
+//       return results;
+//     });
   
-  //   if (fallbackImage.length) return fallbackImage;
+//     if (fallbackImage.length) return fallbackImage;
   
-  //   // Priority 6: Use intercepted .mp4
-  //   if (this.interceptedVideoUrls.length > 0) {
-  //     const unique = [...new Set(this.interceptedVideoUrls)];
-  //     const bestVideo = unique.pop();
-  //     return [{ type: "video", url: bestVideo }];
-  //   }
+//     // Priority 6: Use intercepted .mp4
+//     if (this.interceptedVideoUrls.length > 0) {
+//       const unique = [...new Set(this.interceptedVideoUrls)];
+//       const bestVideo = unique.pop();
+//       return [{ type: "video", url: bestVideo }];
+//     }
   
-  //   // Priority 7: Fallback to OG meta
-  //   const ogFallback = await page.evaluate(() => {
-  //     const result = [];
-  //     const ogVideo = document.querySelector('meta[property="og:video"]')?.content;
-  //     const ogImage = document.querySelector('meta[property="og:image"]')?.content;
-  //     if (ogVideo) result.push({ type: "video", url: ogVideo });
-  //     else if (
-  //       ogImage &&
-  //       !ogImage.includes("profile_pic") &&
-  //       !ogImage.includes("/s150x150") &&
-  //       !ogImage.includes("stp=")
-  //     )
-  //       result.push({ type: "image", url: ogImage });
-  //     return result;
-  //   });
+//     // Priority 7: Fallback to OG meta
+//     const ogFallback = await page.evaluate(() => {
+//       const result = [];
+//       const ogVideo = document.querySelector('meta[property="og:video"]')?.content;
+//       const ogImage = document.querySelector('meta[property="og:image"]')?.content;
+//       if (ogVideo) result.push({ type: "video", url: ogVideo });
+//       else if (
+//         ogImage &&
+//         !ogImage.includes("profile_pic") &&
+//         !ogImage.includes("/s150x150") &&
+//         !ogImage.includes("stp=")
+//       )
+//         result.push({ type: "image", url: ogImage });
+//       return result;
+//     });
   
-  //   return ogFallback.length ? ogFallback : [];
-  // }
+//     return ogFallback.length ? ogFallback : [];
+//   }
   
 
 //   async getMediaInfo(url) {
