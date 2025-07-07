@@ -193,17 +193,6 @@ class ProxyManager {
       { host: '142.147.128.93', port: '6593', username: 'mdpyinsf', password: 'b0jp9ah5i75l' },
       { host: '104.239.105.125', port: '6655', username: 'mdpyinsf', password: 'b0jp9ah5i75l' },
       { host: '206.41.172.74', port: '6655', username: 'mdpyinsf', password: 'b0jp9ah5i75l' },
-
-      // { host: '38.154.227.167', port: '5868', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '198.23.239.134', port: '6540', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '207.244.217.165', port: '6712', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '107.172.163.27', port: '6543', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '216.10.27.159', port: '6837', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '136.0.207.84', port: '6661', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '64.64.118.149', port: '6732', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '142.147.128.93', port: '6593', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '104.239.105.125', port: '6655', username: 'fqpwxfth', password: 'c1sdb3lod4h7' },
-      // { host: '206.41.172.74', port: '6634', username: 'fqpwxfth', password: 'c1sdb3lod4h7' }
     ];
     
     this.failedProxies = new Set();

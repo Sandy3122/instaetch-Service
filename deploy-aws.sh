@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# AWS Production Deployment Script for InstaFetch Backend
+# AWS Production Deployment Script for IGSavr Backend
 # This script deploys the application on AWS EC2 using docker-compose
 
 set -e
@@ -11,7 +11,7 @@ SERVICE_NAME="instagram-scraper"
 VERSION=${1:-"latest"}
 DOMAIN=${2:-""}
 
-echo "🚀 InstaFetch AWS Production Deployment"
+echo "🚀 IGSavr AWS Production Deployment"
 echo "======================================="
 echo "Compose File: $COMPOSE_FILE"
 echo "Service: $SERVICE_NAME"
@@ -32,7 +32,7 @@ if ! command -v docker-compose &> /dev/null; then
 fi
 
 # Create deployment directory
-DEPLOY_DIR="/opt/instafetch"
+DEPLOY_DIR="/opt/IGSavr"
 echo "📁 Setting up deployment directory: $DEPLOY_DIR"
 sudo mkdir -p $DEPLOY_DIR
 sudo chown $USER:$USER $DEPLOY_DIR

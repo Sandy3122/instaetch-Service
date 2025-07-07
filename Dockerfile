@@ -7,7 +7,7 @@ ARG BUILD_DATE
 ARG VERSION
 
 # Labels for better image management
-LABEL maintainer="InstaFetch Team"
+LABEL maintainer="IGSavr Team"
 LABEL version="${VERSION}"
 LABEL build-date="${BUILD_DATE}"
 LABEL description="Instagram Scraper Backend with PM2"

@@ -55,7 +55,7 @@
 //     // Root endpoint
 //     this.app.get('/', (req, res) => {
 //       res.json({
-//         name: 'InstaFetch API',
+//         name: 'IGSavr API',
 //         version: '1.0.0',
 //         description: 'Secure Instagram Scraper MVP Backend',
 //         endpoints: {
@@ -127,7 +127,7 @@
 //     return new Promise((resolve, reject) => {
 //       try {
 //         this.server = this.app.listen(this.port, () => {
-//           console.log(`InstaFetch API server running on port ${this.port}`);
+//           console.log(`IGSavr API server running on port ${this.port}`);
 //           console.log(`Environment: ${config.server.nodeEnv}`);
 //           console.log(`Health Check: http://localhost:${this.port}/api/health`);
 //           console.log(`Carousel endpoint: http://localhost:${this.port}/api/carousel/convert`);
@@ -256,7 +256,7 @@
 //     // Root endpoint
 //     this.app.get('/', (req, res) => {
 //       res.json({
-//         name: 'InstaFetch API',
+//         name: 'IGSavr API',
 //         version: '1.0.0',
 //         description: 'Secure Instagram Scraper MVP Backend',
 //         endpoints: {
@@ -331,7 +331,7 @@
 
 //         return new Promise((resolve, reject) => {
 //             this.server = this.app.listen(this.port, () => {
-//                 console.log(`InstaFetch API server running on port ${this.port}`);
+//                 console.log(`IGSavr API server running on port ${this.port}`);
 //                 console.log(`Environment: ${config.server.nodeEnv}`);
 //                 console.log(`Health Check: http://localhost:${this.port}/api/health`);
 //                 console.log(`Carousel endpoint: http://localhost:${this.port}/api/carousel/convert`);
@@ -481,7 +481,7 @@
 //     // Root endpoint
 //     this.app.get('/', (req, res) => {
 //       res.json({
-//         name: 'InstaFetch API',
+//         name: 'IGSavr API',
 //         version: '1.0.0',
 //         description: 'Secure Instagram Scraper MVP Backend',
 //         endpoints: {
@@ -563,7 +563,7 @@
 
 //         return new Promise((resolve, reject) => {
 //             this.server = this.app.listen(this.port, () => {
-//                 console.log(`InstaFetch API server running on port ${this.port}`);
+//                 console.log(`IGSavr API server running on port ${this.port}`);
 //                 console.log(`Environment: ${config.server.nodeEnv}`);
 //                 console.log(`Health Check: http://localhost:${this.port}/api/health`);
 //                 console.log(`Carousel endpoint: http://localhost:${this.port}/api/carousel/convert`);
@@ -760,7 +760,7 @@ class Server {
     // Root endpoint
     this.app.get('/', (req, res) => {
       res.json({
-        name: 'InstaFetch API',
+        name: 'IGSavr API',
         version: '1.0.0',
         description: 'Secure Instagram Scraper MVP Backend',
         endpoints: {
@@ -846,7 +846,7 @@ class Server {
 
         return new Promise((resolve, reject) => {
             this.server = this.app.listen(this.port, '0.0.0.0', () => {
-                logger.info(`InstaFetch API server running on port ${this.port}`);
+                logger.info(`IGSavr API server running on port ${this.port}`);
                 logger.info(`Environment: ${config.server.nodeEnv}`);
                 logger.info(`Health Check: http://localhost:${this.port}/api/health`);
                 logger.info(`Carousel endpoint: http://localhost:${this.port}/api/carousel/convert`);

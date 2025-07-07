@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# InstaFetch Backend Startup Script
-# This script sets up and starts the InstaFetch backend server
+# IGSavr Backend Startup Script
+# This script sets up and starts the IGSavr backend server
 
 set -e
 
-echo "🚀 InstaFetch Backend Startup Script"
+echo "🚀 IGSavr Backend Startup Script"
 echo "======================================"
 
 # Check if Node.js is installed
@@ -84,7 +84,7 @@ export LOG_MEDIA=${LOG_MEDIA:-"false"}
 export LOG_SESSION=${LOG_SESSION:-"false"}
 export LOG_INTERCEPT=${LOG_INTERCEPT:-"false"}
 
-echo "Starting InstaFetch Backend with logging level: $LOG_LEVEL"
+echo "Starting IGSavr Backend with logging level: $LOG_LEVEL"
 echo "Media logs: $LOG_MEDIA"
 echo "Session logs: $LOG_SESSION"
 echo "Intercept logs: $LOG_INTERCEPT"

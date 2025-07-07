@@ -1,4 +1,4 @@
-# InstaFetch Backend - Secure Instagram Scraper MVP
+# IGSavr Backend - Secure Instagram Scraper MVP
 
 A secure Node.js backend API for scraping public Instagram content (profiles, posts, reels, stories, highlights, etc.) following fastdl.app patterns.
 

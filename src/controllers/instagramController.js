@@ -503,7 +503,7 @@
 
 //       // Stream the response to the client
 //       const contentType = downloadResponse.headers['content-type'] || (mediaUrl.includes('.mp4') ? 'video/mp4' : 'image/jpeg');
-//       const filename = `instafetch-media-${Date.now()}.${contentType.split('/')[1] || 'mp4'}`;
+//       const filename = `IGSavr-media-${Date.now()}.${contentType.split('/')[1] || 'mp4'}`;
 
 //       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 //       res.setHeader('Content-Type', contentType);
@@ -1053,7 +1053,7 @@ class InstagramController {
 
       // Stream the response to the client
       const contentType = downloadResponse.headers['content-type'] || (mediaUrl.includes('.mp4') ? 'video/mp4' : 'image/jpeg');
-      const filename = `instafetch-media-${Date.now()}.${contentType.split('/')[1] || 'mp4'}`;
+      const filename = `IGSavr-media-${Date.now()}.${contentType.split('/')[1] || 'mp4'}`;
 
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.setHeader('Content-Type', contentType);

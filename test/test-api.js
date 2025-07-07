@@ -7,7 +7,7 @@ const testConfig = {
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
-    'User-Agent': 'InstaFetch-Test/1.0',
+    'User-Agent': 'IGSavr-Test/1.0',
   },
 };
 
@@ -47,7 +47,7 @@ async function testEndpoint(endpoint, method = 'GET', data = null) {
 }
 
 async function runTests() {
-  console.log('🚀 Starting InstaFetch API Tests');
+  console.log('🚀 Starting IGSavr API Tests');
   console.log(`📍 Base URL: ${BASE_URL}`);
   console.log('=' .repeat(50));
   

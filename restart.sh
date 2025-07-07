@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Restarting InstaFetch backend server..."
+echo "Restarting IGSavr backend server..."
 
 # Kill any existing node processes running the server
 pkill -f "node.*server.js" || true

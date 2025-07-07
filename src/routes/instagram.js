@@ -23,7 +23,7 @@
 // // API documentation endpoint
 // router.get('/docs', (req, res) => {
 //   res.json({
-//     title: 'InstaFetch API Documentation',
+//     title: 'IGSavr API Documentation',
 //     version: '1.0.0',
 //     description: 'Secure Instagram scraping API following fastdl.app patterns',
 //     endpoints: [
@@ -328,7 +328,7 @@ router.get('/proxy-media', async (req, res) => {
   // API documentation endpoint
   router.get('/docs', (req, res) => {
     res.json({
-      title: 'InstaFetch API Documentation',
+      title: 'IGSavr API Documentation',
       version: '1.0.0',
       description: 'Secure Instagram scraping API following fastdl.app patterns',
       endpoints: [

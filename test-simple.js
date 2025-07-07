@@ -5,7 +5,7 @@ const axios = require('axios');
 const BASE_URL = 'http://localhost:3000/api';
 
 async function testBackend() {
-  console.log('🧪 Testing InstaFetch Backend');
+  console.log('🧪 Testing IGSavr Backend');
   console.log('=' .repeat(40));
   
   try {

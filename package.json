@@ -1,5 +1,5 @@
 {
-  "name": "instafetch-backend",
+  "name": "IGSavr-backend",
   "version": "1.0.0",
   "description": "Secure Instagram Scraper MVP Backend",
   "main": "src/server.js",
@@ -8,9 +8,9 @@
     "dev": "nodemon --ignore 'src/sessions/*' src/server.js",
     "monitor": "node monitor.js",
     "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:stop": "pm2 stop instafetch-backend",
-    "pm2:restart": "pm2 restart instafetch-backend",
-    "pm2:logs": "pm2 logs instafetch-backend",
+    "pm2:stop": "pm2 stop IGSavr-backend",
+    "pm2:restart": "pm2 restart IGSavr-backend",
+    "pm2:logs": "pm2 logs IGSavr-backend",
     "pm2:monit": "pm2 monit",
     "test": "jest",
     "test:api": "node test/test-api.js",
@@ -23,7 +23,7 @@
     "nodejs",
     "express"
   ],
-  "author": "InstaFetch Team",
+  "author": "IGSavr Team",
   "license": "MIT",
   "dependencies": {
     "axios": "^1.6.2",

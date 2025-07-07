@@ -1,6 +1,6 @@
   #!/bin/bash
 
-# Production Deployment Script for InstaFetch Backend
+# Production Deployment Script for IGSavr Backend
 # This script deploys the latest version from Docker Hub
 
 set -e
@@ -11,7 +11,7 @@ CONTAINER_NAME="instagram-scraper-prod"
 VERSION=${1:-"latest"}
 PORT=3000
 
-echo "🚀 InstaFetch Production Deployment"
+echo "🚀 IGSavr Production Deployment"
 echo "===================================="
 echo "Image: $IMAGE_NAME:$VERSION"
 echo "Container: $CONTAINER_NAME"
