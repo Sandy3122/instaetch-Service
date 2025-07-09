@@ -148,9 +148,9 @@
   //     }
   //   }
 
-//     console.log(`Total unique media items found: ${collectedMedia.size}.`);
-//     return Array.from(collectedMedia.values());
-//   }
+  //   console.log(`Total unique media items found: ${collectedMedia.size}.`);
+  //   return Array.from(collectedMedia.values());
+  // }
 
 //   async scrapeSingleMedia(page) {
 //     const tryGetMedia = async () => {
