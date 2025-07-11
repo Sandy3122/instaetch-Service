@@ -153,6 +153,43 @@ npm start
 | `CACHE_TTL` | Cache TTL in seconds | 3600 (1 hour) |
 | `ALLOWED_ORIGINS` | CORS allowed origins | localhost URLs |
 
+## 🐛 Troubleshooting
+
+### Common Issues
+
+#### Instagram Login Timeouts
+If you encounter timeout errors during Instagram login:
+```bash
+# Run the debug script to identify the issue
+node debug-login.js [username]
+
+# Check the detailed troubleshooting guide
+cat TROUBLESHOOTING.md
+```
+
+#### Docker Issues
+For Docker-specific problems:
+```bash
+# Use Docker-optimized environment
+cp docker.env .env
+
+# Rebuild and restart
+docker-compose down
+docker-compose up --build
+```
+
+#### Session Management
+If sessions are failing:
+```bash
+# Clear session data
+rm -rf src/sessions/*
+
+# Restart with fresh sessions
+npm run pm2:restart
+```
+
+For detailed troubleshooting information, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
+
 ## 📚 API Endpoints
 
 ### Base URL

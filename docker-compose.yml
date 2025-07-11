@@ -9,9 +9,13 @@ services:
     container_name: instagram-scraper
     ports:
       - "3000:3000"
+    env_file:
+      - docker.env
     environment:
       - NODE_ENV=production
       - PM2_HOME=/app/.pm2
+      - INSTAGRAM_TIMEOUT=120000
+      - LOG_SESSION=true
     volumes:
       - .:/app
       - /app/node_modules

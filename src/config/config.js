@@ -88,7 +88,7 @@ const config = {
   
   instagram: {
     userAgent: process.env.INSTAGRAM_USER_AGENT || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    timeout: parseInt(process.env.INSTAGRAM_TIMEOUT) || 80000,
+    timeout: parseInt(process.env.INSTAGRAM_TIMEOUT) || (process.env.NODE_ENV === 'production' ? 120000 : 80000), // Increased timeout for production/Docker
     baseUrl: 'https://www.instagram.com',
     apiUrl: 'https://i.instagram.com/api/v1',
     reelSelectors: [
@@ -124,14 +124,17 @@ const config = {
   },
   
   cors: {
-    allowedOrigins: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [
-      'http://localhost:3000', 
-      'http://localhost:5173', 
-      'http://localhost:8080',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:8080'
-    ],
+    allowedOrigins: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : 
+      process.env.NODE_ENV === 'production' ? 
+        ['*'] : // Allow all origins in production
+        [
+          'http://localhost:3000', 
+          'http://localhost:5173', 
+          'http://localhost:8080',
+          'http://127.0.0.1:3000',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:8080'
+        ],
   },
 };
 

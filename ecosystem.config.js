@@ -23,6 +23,6 @@ module.exports = {
     node_args: '--max-old-space-size=1024',
     // Graceful shutdown
     kill_timeout: 5000,
-    listen_timeout: 3000
+    listen_timeout: 6000
   }]
 }; 

@@ -58,14 +58,25 @@ RUN npm install -g pm2
 # Install Playwright browsers
 RUN npx playwright install chromium
 
-# Copy the rest of the application
-COPY . .
+# Copy the application source code
+COPY src/ ./src/
+COPY ecosystem.config.js ./
+COPY env.example ./
+
+# Create sessions directory and ensure it exists
+RUN mkdir -p src/sessions
+
+# Copy session files (will copy all .json files from src/sessions if they exist)
+COPY src/sessions/ ./src/sessions/
 
 # Copy env.example to .env if .env doesn't exist
 RUN cp -n env.example .env 2>/dev/null || true
 
 # Create logs directory
 RUN mkdir -p logs
+
+# List session files for debugging
+RUN ls -la src/sessions/ 2>/dev/null || echo "No session files found"
 
 # Expose the port your app runs on
 EXPOSE 3000
