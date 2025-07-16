@@ -5,7 +5,7 @@
 echo "🚀 Deploying IGSavr with Sessions..."
 
 # Pull the latest image
-docker pull sandeepseeram22/instagram-scraper:v0.0.5
+docker pull sandeepseeram22/instagram-scraper:v0.0.8
 
 # Stop existing container if running
 docker stop instagram-scraper 2>/dev/null || true
@@ -20,7 +20,7 @@ docker run -d \
   -e INSTAGRAM_TIMEOUT=120000 \
   -e LOG_SESSION=true \
   --restart unless-stopped \
-  sandeepseeram22/instagram-scraper:v0.0.5
+  sandeepseeram22/instagram-scraper:v0.0.8
 
 echo "✅ Container started!"
 echo "📊 Check logs: docker logs -f instagram-scraper"

@@ -285,55 +285,27 @@ class InstagramScraper {
   async clickAndScrapeCarousel(page, interceptedVideoUrls) {
     const nextButtonSelector = 'button[aria-label="Next"]';
     const collectedMedia = new Map();
-    
-    // The main interception is now handled at the context level.
-    // We pass interceptedVideoUrls to this function to process them.
-
     let currentSlide = 1;
-    
     while (true) {
         console.log(`🔄 Scraping slide ${currentSlide}...`);
-    
-        const playButton = page.locator('div[role="button"][aria-label*="Play"]');
-        if (await playButton.isVisible({ timeout: 1500 }).catch(() => false)) {
-            console.log(`▶️ Found video on slide ${currentSlide}. Clicking play...`);
-            await playButton.click().catch(() => {});
-            await page.waitForTimeout(3000); // Let the video load and be intercepted
-        }
-    
+        // Only collect images, skip video logic entirely
         const mediaItems = await page.evaluate(() => {
             const results = [];
             const items = document.querySelectorAll("ul._acay li._acaz");
-    
             items.forEach((item) => {
                 const img = item.querySelector("img.x5yr21d");
                 if (img && img.src) {
                     results.push({ type: "image", url: img.src });
                 }
-    
-                const vid = item.querySelector("video");
-                if (vid && vid.src && !vid.src.startsWith("blob:")) {
-                    results.push({ type: "video", url: vid.src });
-                }
             });
-    
             return results;
         });
-
-        // Add intercepted .mp4s if not already captured
-        interceptedVideoUrls.forEach((url) => {
-            if (!collectedMedia.has(url)) {
-                collectedMedia.set(url, { type: "video", url });
-            }
-        });
-    
-        // Add evaluated media (excluding blob videos)
+        // Only add images to collectedMedia
         mediaItems.forEach((media) => {
             if (media.url && !collectedMedia.has(media.url)) {
                 collectedMedia.set(media.url, media);
             }
         });
-    
         const nextBtn = page.locator(nextButtonSelector);
         try {
             await nextBtn.waitFor({ state: "visible", timeout: 1500 });
@@ -345,8 +317,7 @@ class InstagramScraper {
             break;
         }
     }
-    
-    console.log(`Total media found: ${collectedMedia.size}`);
+    console.log(`Total images found: ${collectedMedia.size}`);
     return Array.from(collectedMedia.values());
   }
   
