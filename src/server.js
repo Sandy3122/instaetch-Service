@@ -57,6 +57,37 @@ class Server {
     //   next();
     // });
 
+    // Blocked paths middleware for security
+    this.app.use((req, res, next) => {
+      const blockedPaths = [
+        /\.env$/,
+        /\.git/,
+        /phpinfo/i,
+        /config\.json/i,
+        /\/remote/i,
+        /\/login/i,
+        /\/owa/i,
+        /\/dns-query/i,
+        /\/resolve/i,
+        /\/query/i,
+        /\/sitemap\.xml$/,
+        /\/robots\.txt$/,
+      ];
+    
+      const isBlocked = blockedPaths.some((pattern) => pattern.test(req.path));
+    
+      if (isBlocked) {
+        logger.warn(`🚫 Blocked suspicious request: ${req.method} ${req.originalUrl}`);
+        return res.status(403).json({
+          error: 'Access Denied',
+          message: 'This path is not available.',
+        });
+      }
+    
+      next();
+    });
+    
+
     // Request timeout middleware (5 minutes)
     this.app.use((req, res, next) => {
       const timeout = setTimeout(() => {
@@ -104,31 +135,6 @@ class Server {
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         sessions: sessionManager ? sessionManager.contexts.length : 0
-      });
-    });
-
-    // Root endpoint
-    this.app.get('/', (req, res) => {
-      res.json({
-        name: 'IGSavr API',
-        version: '1.0.0',
-        description: 'Secure Instagram Scraper MVP Backend',
-        endpoints: {
-          health: '/api/health',
-          cf: '/api/cf',
-          msec: '/api/msec',
-          userInfo: '/api/v1/instagram/userInfo',
-          posts: '/api/v1/instagram/postsV2',
-          convert: '/api/convert',
-          carousel: '/api/carousel/convert',
-          stories: '/api/v1/instagram/stories',
-          highlights: '/api/v1/instagram/highlights',
-          cache: {
-            stats: '/api/cache/stats',
-            clear: '/api/cache/clear',
-          },
-        },
-        documentation: 'API follows fastdl.app patterns for Instagram scraping',
       });
     });
   }
