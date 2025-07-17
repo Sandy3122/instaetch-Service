@@ -188,7 +188,7 @@ class Server {
   async start() {
     try {
         // Initialize the session manager and log in all accounts BEFORE starting the server
-        await sessionManager.initialize();
+        // await sessionManager.initialize();
 
         // Instantiate controllers AFTER sessionManager is initialized
         const instagramControllerInstance = new InstagramController(sessionManager);

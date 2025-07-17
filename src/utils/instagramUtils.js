@@ -1,114 +1,48 @@
+
 // Partially working with carousel video issue
 const { chromium } = require("playwright");
 const config = require("../config/config"); // Assuming config file exists
 const proxyManager = require("./proxyManager");
-const sessionManager = require("./sessionManager");
-
 class InstagramScraper {
-  constructor(externalSessionManager = null) {
+  constructor() {
     this.browser = null;
     this.context = null;
     this.userAgent = config.instagram.userAgent;
     this.requestCount = 0; // 🔁 Count requests
     this.maxRequestsBeforeRotation = 15; // Rotate after 15
-    this.useSessionManager = true; // Flag to control session management usage
-    this.sessionInitialized = false; // Track if sessions have been initialized
-    
-    // Use external session manager if provided, otherwise use the imported one
-    this.sessionManager = externalSessionManager || sessionManager;
   }
-
-  /**
-   * Initializes the SessionManager if not already done.
-   * This should be called before the first scraping operation.
-   */
-  async initializeSessions() {
-    if (this.sessionInitialized || !this.useSessionManager) {
-      return;
-    }
-
-    try {
-      console.log("🚀 Initializing SessionManager for Instagram scraping...");
-      await this.sessionManager.initialize();
-      this.sessionInitialized = true;
-      console.log("✅ SessionManager initialized successfully");
-    } catch (error) {
-      console.error("❌ Failed to initialize SessionManager:", error.message);
-      this.useSessionManager = false;
-    }
-  }
-
   /**
    * Launches a new browser instance and creates a new context if they don't already exist.
-   * Now prioritizes using SessionManager for authenticated sessions.
    */
+
   async launchOrReuseBrowser(maxRetries = 3) {
-    // First, try to use SessionManager for authenticated sessions
-    if (this.useSessionManager && this.sessionManager.contexts && this.sessionManager.contexts.length > 0) {
-      try {
-        console.log("🔐 Using authenticated session from SessionManager...");
-        const authenticatedContext = this.sessionManager.getRandomContext();
-        this.requestCount++;
-        // Ensure the context is returned directly
-        return authenticatedContext;
-      } catch (error) {
-        console.warn("⚠️ SessionManager not available, falling back to proxy-based browser:", error.message);
-        this.useSessionManager = false;
-      }
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const proxy = proxyManager.getNextProxy();
+    try {
+      console.log(`🚀 Launching browser [Attempt ${attempt}] with proxy ${proxy.host}:${proxy.port}`);
+      this.browser = await chromium.launch({
+        headless: true,
+        proxy: {
+          server: `http://${proxy.host}:${proxy.port}`,
+          username: proxy.username,
+          password: proxy.password,
+        },
+        args: ["--no-sandbox"],
+      });
+      this.requestCount = 0;
+      break;
+    } catch (err) {
+      console.warn(`❌ Proxy failed at launch (Attempt ${attempt}): ${err.message}`);
     }
-
-    // If no sessions available, try to refresh them
-    if (this.useSessionManager) {
-      console.log("🔄 No authenticated sessions available, attempting to refresh...");
-      const refreshed = await this.refreshSessions();
-      if (refreshed) {
-        try {
-          console.log("🔐 Using refreshed authenticated session from SessionManager...");
-          const authenticatedContext = this.sessionManager.getRandomContext();
-          this.requestCount++;
-          return authenticatedContext;
-        } catch (error) {
-          console.warn("⚠️ Failed to use refreshed session, falling back to proxy-based browser:", error.message);
-          this.useSessionManager = false;
-        }
-      } else {
-        console.warn("⚠️ Failed to refresh sessions, falling back to proxy-based browser");
-        this.useSessionManager = false;
-      }
-    }
-
-    // Fallback to proxy-based browser if no authenticated sessions available
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const proxy = proxyManager.getNextProxy();
-      try {
-        console.log(`🚀 Launching browser [Attempt ${attempt}] with proxy ${proxy.host}:${proxy.port}`);
-        this.browser = await chromium.launch({
-          headless: true,
-          proxy: {
-            server: `http://${proxy.host}:${proxy.port}`,
-            username: proxy.username,
-            password: proxy.password,
-          },
-          args: ["--no-sandbox"],
-        });
-        this.requestCount = 0;
-        // Break the loop on successful launch
-        break;
-      } catch (err) {
-        console.warn(`❌ Proxy failed at launch (Attempt ${attempt}): ${err.message}`);
-        if (attempt === maxRetries) {
-            throw new Error("Failed to launch browser with any proxy after multiple attempts.");
-        }
-      }
-    }
-    
-    this.requestCount++;
-
-    return await this.browser.newContext({
-      userAgent: this.userAgent,
-      viewport: { width: 1280, height: 800 },
-    });
   }
+
+  this.requestCount++;
+
+  return await this.browser.newContext({
+    userAgent: this.userAgent,
+    viewport: { width: 1280, height: 800 },
+  });
+}
 
 
 
@@ -138,52 +72,6 @@ class InstagramScraper {
       console.error("Failed to close browser instance:", error.message);
     }
   }
-
-  /**
-   * Closes all sessions and browser instances.
-   * This should be called when shutting down the scraper.
-   */
-  async closeAll() {
-    await this.closeBrowser();
-    
-    if (this.useSessionManager && this.sessionManager) {
-      try {
-        await this.sessionManager.close();
-        console.log("✅ All sessions closed successfully");
-      } catch (error) {
-        console.error("❌ Error closing sessions:", error.message);
-      }
-    }
-  }
-  /**
-   * Checks if we have valid authenticated sessions available.
-   * @returns {boolean} True if authenticated sessions are available, false otherwise.
-   */
-  hasAuthenticatedSessions() {
-    return this.useSessionManager &&    
-           this.sessionManager.contexts &&   
-           this.sessionManager.contexts.length > 0;
-  }
-
-  /**
-   * Attempts to refresh sessions if they're not available.
-   * @returns {Promise<boolean>} True if sessions were successfully refreshed, false otherwise.
-   */
-  async refreshSessions() {
-    if (!this.useSessionManager) {
-      return false;
-    }
-
-    try {
-      console.log("🔄 Attempting to refresh sessions...");
-      await this.sessionManager.initialize();
-      return this.hasAuthenticatedSessions();
-    } catch (error) {
-      console.error("❌ Failed to refresh sessions:", error.message);
-      return false;
-    }
-  }
-
   /**
    * Extracts the shortcode from an Instagram URL.
    * @param {string} url - The Instagram URL.
@@ -282,121 +170,191 @@ class InstagramScraper {
    * @returns {Array<object>} An array of collected media items (image/video URLs).
    */  
 
-  async clickAndScrapeCarousel(page, interceptedVideoUrls) {
+  async clickAndScrapeCarousel(page) {
     const nextButtonSelector = 'button[aria-label="Next"]';
+    const listSelector = "ul._acay";
     const collectedMedia = new Map();
+    const intercepted = new Set();
+  
+    // Intercept all .mp4 files globally
+    await page.route("**/*.mp4", async (route) => {
+      const url = route.request().url();
+      if (!intercepted.has(url)) {
+        console.log(`[🎥 Intercepted .mp4] ${url}`);
+        intercepted.add(url);
+      }
+      await route.continue();
+    });
+  
     let currentSlide = 1;
+  
     while (true) {
-        console.log(`🔄 Scraping slide ${currentSlide}...`);
-        // Only collect images, skip video logic entirely
-        const mediaItems = await page.evaluate(() => {
-            const results = [];
-            const items = document.querySelectorAll("ul._acay li._acaz");
-            items.forEach((item) => {
-                const img = item.querySelector("img.x5yr21d");
-                if (img && img.src) {
-                    results.push({ type: "image", url: img.src });
-                }
-            });
-            return results;
+      console.log(`🔄 Scraping slide ${currentSlide}...`);
+  
+      // Try to click play on any visible video
+      const playButton = page.locator('div[role="button"][aria-label*="Play"]');
+      if (await playButton.isVisible({ timeout: 1500 }).catch(() => false)) {
+        console.log(`▶️ Found video on slide ${currentSlide}. Clicking play...`);
+        await playButton.click().catch(() => {});
+        await page.waitForTimeout(3000); // Let the video load and be intercepted
+      }
+  
+      // Extract visible media
+      const mediaItems = await page.evaluate(() => {
+        const results = [];
+        const items = document.querySelectorAll("ul._acay li._acaz");
+  
+        items.forEach((item) => {
+          const img = item.querySelector("img.x5yr21d");
+          if (img && img.src) {
+            results.push({ type: "image", url: img.src });
+          }
+  
+          const vid = item.querySelector("video");
+          if (vid && vid.src && !vid.src.startsWith("blob:")) {
+            results.push({ type: "video", url: vid.src });
+          }
         });
-        // Only add images to collectedMedia
-        mediaItems.forEach((media) => {
-            if (media.url && !collectedMedia.has(media.url)) {
-                collectedMedia.set(media.url, media);
-            }
-        });
-        const nextBtn = page.locator(nextButtonSelector);
-        try {
-            await nextBtn.waitFor({ state: "visible", timeout: 1500 });
-            await nextBtn.click();
-            await page.waitForTimeout(1500);
-            currentSlide += 1;
-        } catch (err) {
-            console.log("End of carousel reached.");
-            break;
+  
+        return results;
+      });
+  
+      // Add intercepted .mp4s if not already captured
+      intercepted.forEach((url) => {
+        if (!collectedMedia.has(url)) {
+          collectedMedia.set(url, { type: "video", url });
         }
+      });
+  
+      // Add evaluated media (excluding blob videos)
+      mediaItems.forEach((media) => {
+        if (media.url && !collectedMedia.has(media.url)) {
+          collectedMedia.set(media.url, media);
+        }
+      });
+  
+      // Try going to next slide
+      const nextBtn = page.locator(nextButtonSelector);
+      try {
+        await nextBtn.waitFor({ state: "visible", timeout: 1500 });
+        await nextBtn.click();
+        await page.waitForTimeout(1500);
+        currentSlide += 1;
+      } catch (err) {
+        console.log("End of carousel reached.");
+        break;
+      }
     }
-    console.log(`Total images found: ${collectedMedia.size}`);
+  
+    console.log(`Total media found: ${collectedMedia.size}`);
     return Array.from(collectedMedia.values());
   }
   
 
 
   /**
-   * Scrapes media from a single image/video post, prioritizing intercepted video URLs.
+   * Scrapes media from a single image/video post, prioritizing video.
    * @param {Page} page - The Playwright Page object.
    * @param {Array<string>} interceptedVideoUrls - List of video URLs intercepted for this page.
-   * @returns {Promise<Array<object>>} An array containing the single media item.
+   * @returns {Array<object>} An array containing the single media item.
    */
+
   async scrapeSingleMedia(page, interceptedVideoUrls) {
-    console.log(`🔍 Scraping single media with ${interceptedVideoUrls.length} intercepted video URLs`);
-    
-    // Priority 1: Use the best intercepted video URL if available.
-    if (interceptedVideoUrls.length > 0) {
-      // First try to find a non-segmented video URL
-      const bestVideo = interceptedVideoUrls.find(url => !url.includes('bytestart'));
-      if (bestVideo) {
-        console.log("✅ Using non-segmented intercepted video URL:", bestVideo);
-        return [{ type: "video", url: bestVideo }];
-      }
-      
-      // If all URLs are segmented, use the one with the longest base URL
-      const bestSegmentedVideo = interceptedVideoUrls.reduce((longest, current) => {
-        const currentBase = current.split('?')[0];
-        const longestBase = longest.split('?')[0];
-        return currentBase.length > longestBase.length ? current : longest;
-      });
-      console.log("✅ Using best segmented intercepted video URL:", bestSegmentedVideo);
-      return [{ type: "video", url: bestSegmentedVideo }];
-    }
-
-    // Priority 2: Try to get a video URL directly from the DOM.
     const tryGetMedia = async () => {
-      // Try to click a play button if it exists to trigger video loading
-      const playButton = page.locator('div[role="button"][aria-label*="Play"]');
-      if (await playButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await playButton.click().catch(() => {});
-        await page.waitForTimeout(1500); // Wait for video element to update
-      }
-
       return await page.evaluate(() => {
+        const results = []; // Priority 1: Get video if available (not blob)
+
         const video = document.querySelector("video");
         if (video && video.src && !video.src.startsWith("blob:")) {
-          return [{ type: "video", url: video.src }];
+          results.push({ type: "video", url: video.src });
+        } // Priority 2: Clean images (non-thumbnail)
+
+        const images = Array.from(document.querySelectorAll("img"))
+          .map((img) => img.src)
+          .filter(
+            (src) =>
+              src &&
+              !src.includes("profile_pic") &&
+              !src.includes("/s150x150") &&
+              !src.includes("/s320x320") &&
+              !src.includes("/s240x240") &&
+              !src.includes("/vp/") &&
+              !src.includes("stp=")
+          );
+
+        if (images.length) {
+          results.push({ type: "image", url: images[0] });
         }
 
-        // Fallback for images if no video is found
-        const img = document.querySelector("div._aagv img.x5yr21d");
-        if (img && img.src) {
-          return [{ type: "image", url: img.src }];
-        }
-        
-        // Final fallback to Open Graph meta tags
-        const ogVideo = document.querySelector('meta[property="og:video"]')?.content;
-        if (ogVideo) return [{ type: "video", url: ogVideo }];
-        
-        const ogImage = document.querySelector('meta[property="og:image"]')?.content;
-        if (ogImage) return [{ type: "image", url: ogImage }];
-
-        return [];
+        return results;
       });
     };
 
     let media = await tryGetMedia();
-    
-    // If we still have nothing, do one last check on the intercepted URLs
-    if (media.length === 0 && interceptedVideoUrls.length > 0) {
-      console.log("⚠️ DOM scraping failed, falling back to any intercepted video.");
-      const fallbackVideo = interceptedVideoUrls[interceptedVideoUrls.length - 1];
-      console.log("✅ Using fallback intercepted video URL:", fallbackVideo);
-      return [{ type: "video", url: fallbackVideo }];
-    }
+    if (media.length && media[0].type === "video") return media; // Priority 3: Try clicking play if present
 
-    return media;
+    const playButton = page.locator('div[role="button"][aria-label*="Play"]');
+    if (await playButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await playButton.click().catch(() => {});
+      await page.waitForTimeout(2000);
+      media = await tryGetMedia();
+      if (media.length && media[0].type === "video") return media;
+    } // Priority 4: Scroll to trigger lazy-load
+
+    await page.mouse.wheel(0, 200);
+    await page.waitForTimeout(2000);
+    media = await tryGetMedia();
+    if (media.length && media[0].type === "video") return media; // Priority 5: Directly target known image containers
+
+    const fallbackImage = await page.evaluate(() => {
+      const results = []; // div._aagv > img.x5yr21d (used in many single image posts)
+
+      const container = document.querySelector("div._aagv");
+      if (container) {
+        const img = container.querySelector("img.x5yr21d");
+        if (img && img.src) {
+          results.push({ type: "image", url: img.src });
+          return results;
+        }
+      } // Fallback: any main-area image with correct class
+
+      const mainImg = document.querySelector("main img.x5yr21d");
+      if (mainImg && mainImg.src) {
+        results.push({ type: "image", url: mainImg.src });
+      }
+
+      return results;
+    });
+
+    if (fallbackImage.length) return fallbackImage; // Priority 6: Use intercepted .mp4
+
+    if (interceptedVideoUrls.length > 0) {
+      const unique = [...new Set(interceptedVideoUrls)];
+      const bestVideo = unique.pop();
+      return [{ type: "video", url: bestVideo }];
+    } // Priority 7: Fallback to OG meta
+
+    const ogFallback = await page.evaluate(() => {
+      const result = [];
+      const ogVideo = document.querySelector(
+        'meta[property="og:video"]'
+      )?.content;
+      const ogImage = document.querySelector(
+        'meta[property="og:image"]'
+      )?.content;
+      if (ogVideo) result.push({ type: "video", url: ogVideo });
+      else if (
+        ogImage &&
+        !ogImage.includes("profile_pic") &&
+        !ogImage.includes("/s150x150") &&
+        !ogImage.includes("stp=")
+      )
+        result.push({ type: "image", url: ogImage });
+      return result;
+    });
+
+    return ogFallback.length ? ogFallback : [];
   }
-
-  
   /**
    * Fetches media information (images/videos, and metadata) from a given Instagram post URL.
    * This method now manages its own browser context for each scrape operation to ensure isolation.
@@ -404,149 +362,106 @@ class InstagramScraper {
    * @returns {object} An object containing success status and scraped data or error information.
    */
 
-async getMediaInfo(url) {
+  async getMediaInfo(url) {
   let page;
-  let context;
-  const interceptedVideoUrls = [];
+  let interceptedVideoUrls = [];
 
   try {
-    await this.initializeSessions();
-
-    if (this.requestCount > 1) {
-      const delay = Math.random() * (3000 - 1000) + 1000;
-      console.log(`⏳ Adding delay of ${Math.round(delay)}ms between requests...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-
-    context = await this.launchOrReuseBrowser();
+    const context = await this.launchOrReuseBrowser(); // Reuse sticky session browser
     this.context = context;
-
     page = await context.newPage();
 
-    // ✅ FIXED: Use a more comprehensive route pattern to catch all MP4 requests
-    await page.route("**/*", async (route) => {
+    // Intercept .mp4 URLs
+    await page.route("**/*.mp4", async (route) => {
       const reqUrl = route.request().url();
-      
-      // Check if this is an MP4 request
-      if (reqUrl.includes(".mp4") && 
-          !reqUrl.includes("profile_pic") && 
-          !interceptedVideoUrls.includes(reqUrl)) {
+      if (
+        reqUrl.endsWith(".mp4") &&
+        !reqUrl.includes("bytestart") &&
+        !reqUrl.includes("profile_pic")
+      ) {
         interceptedVideoUrls.push(reqUrl);
-        // console.log(`[🎯 Intercepted Video] ${reqUrl}`);
+        console.log(`[🎯 Intercepted Video] ${reqUrl}`);
       }
-      
-      // Continue with the request
-      const headers = {
-        ...route.request().headers(),
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache"
-      };
-      route.continue({ headers });
+      await route.continue();
     });
 
-    await page.addInitScript(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-      navigator.serviceWorker?.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-    });
+    // Optional: Log public IP for debugging
+    try {
+      const ip = await page.evaluate(() =>
+        fetch("https://api.ipify.org").then((res) => res.text())
+      );
+      console.log(`🌐 Proxy IP used: ${ip}`);
+    } catch {
+      console.warn("⚠️ Could not fetch IP from proxy.");
+    }
 
-    // page.on("request", (request) => {
-    //   if (request.url().includes(".mp4")) {
-    //     console.log("📡 MP4 request (request):", request.url());
-    //   }
-    // });
-
-    // page.on("response", (response) => {
-    //   if (response.url().includes(".mp4")) {
-    //     console.log("✅ MP4 request (response):", response.url());
-    //   }
-    // });
-
+    // Try navigation with retry logic
     console.log(`Navigating to ${url}...`);
     try {
-      await page.goto(url, { waitUntil: "load", timeout: config.instagram.timeout });
+      await page.goto(url, {
+        waitUntil: "load",
+        timeout: config.instagram.timeout,
+      });
     } catch (e) {
-      console.warn("⚠️ First navigation failed. Retrying...");
+      console.warn("⚠️ First navigation attempt failed. Retrying in 2s...");
       await page.waitForTimeout(2000);
-      await page.goto(url, { waitUntil: "load", timeout: config.instagram.timeout });
+      await page.goto(url, {
+        waitUntil: "load",
+        timeout: config.instagram.timeout,
+      });
     }
 
+    // Handle prompts
     const handledWebPrompt = await this.handleContinueOnWebPrompt(page);
-    if (handledWebPrompt) await page.waitForLoadState("domcontentloaded", { timeout: 10000 });
-
-    if (!this.hasAuthenticatedSessions()) {
-      await this.handleLoginPopup(page);
-      await this.handleCookieDialog(page);
-    } else {
-      console.log("🔐 Authenticated session active, skipping login prompts.");
+    if (handledWebPrompt) {
+      await page.waitForLoadState("domcontentloaded", { timeout: 10000 });
     }
+    await this.handleLoginPopup(page);
+    await this.handleCookieDialog(page);
 
     const successLocator = page.locator('main[role="main"]');
     const failureLocator = page.getByText(/Sorry, this page isn't available/i);
 
+    console.log("Waiting for content or failure indicators...");
     await Promise.race([
       successLocator.waitFor({ state: "visible", timeout: 15000 }),
-      failureLocator.waitFor({ state: "visible", timeout: 15000 })
+      failureLocator.waitFor({ state: "visible", timeout: 15000 }),
     ]);
 
     if (await failureLocator.isVisible()) {
-      throw new Error("The requested content is not available. It may have been deleted or is private.");
+      throw new Error(
+        "The requested content is not available. It may have been deleted or the account is private."
+      );
     }
 
-    try {
-      await page.waitForSelector("video", { timeout: 10000 });
-      console.log("🎬 Video element is present. Waiting for it to be playable...");
-      await page.evaluate(() => {
-        const video = document.querySelector("video");
-        return new Promise((resolve) => {
-          if (!video) return resolve(false);
-          video.oncanplay = () => resolve(true);
-          video.load();
-        });
-      });
-      await page.waitForTimeout(2000);
-    } catch {
-      console.warn("⚠️ No playable video detected before scrape.");
+    if (!(await successLocator.isVisible())) {
+      throw new Error("Could not determine page content after 15 seconds.");
     }
 
-    const isCarousel = (await page.locator('button[aria-label="Next"]').count()) > 0;
+    console.log("Page content loaded successfully.");
+
+    const nextButtonSelector = 'button[aria-label="Next"]';
+    const isCarousel = (await page.locator(nextButtonSelector).count()) > 0;
+
     let extractedItems = [];
-
     if (isCarousel) {
       console.log("📸 Carousel detected. Scraping...");
-      extractedItems = await this.clickAndScrapeCarousel(page, interceptedVideoUrls);
+      extractedItems = await this.clickAndScrapeCarousel(page);
     } else {
       console.log("🖼️ Single post detected. Scraping...");
       extractedItems = await this.scrapeSingleMedia(page, interceptedVideoUrls);
-    }
-
-    // ✅ IMPROVED: Better fallback logic for intercepted videos
-    if (extractedItems.length === 0 && interceptedVideoUrls.length > 0) {
-      console.log("No DOM media found. Using intercepted videos.");
-      // Find the best video URL (prefer non-segmented, then longest URL as fallback)
-      let bestVideoUrl = interceptedVideoUrls.find(url => !url.includes('bytestart'));
-      if (!bestVideoUrl) {
-        // If all URLs have bytestart, take the one with the longest base URL
-        bestVideoUrl = interceptedVideoUrls.reduce((longest, current) => {
-          const currentBase = current.split('?')[0];
-          const longestBase = longest.split('?')[0];
-          return currentBase.length > longestBase.length ? current : longest;
-        });
-      }
-      extractedItems = [{
-        type: "video",
-        url: bestVideoUrl
-      }];
-      console.log(`✅ Selected video URL: ${bestVideoUrl}`);
     }
 
     if (extractedItems.length === 0) {
       throw new Error("Scraping failed. No media items could be found on the page.");
     }
 
+    // Extract metadata
     const metadata = await page.evaluate(() => {
-      const username = document.querySelector('header a[href*="/"]')?.textContent || "unknown";
-      const caption = document.querySelector("h1")?.textContent || "";
+      const usernameLink = document.querySelector('header a[href*="/"]');
+      const username = usernameLink ? usernameLink.textContent : "unknown";
+      const captionDiv = document.querySelector("h1");
+      const caption = captionDiv ? captionDiv.textContent : "";
       return { username, caption };
     });
 
@@ -561,14 +476,16 @@ async getMediaInfo(url) {
     };
   } catch (error) {
     console.error(`❌ Error in getMediaInfo: ${error.message}`);
+
+    // Screenshot capture
     try {
       if (page && !page.isClosed()) {
         const screenshotPath = `error_screenshot_${Date.now()}.png`;
         await page.screenshot({ path: screenshotPath, fullPage: true });
-        console.log(`📸️ Screenshot saved: ${screenshotPath}`);
+        console.log(`🖼️ Screenshot saved: ${screenshotPath}`);
       }
     } catch (ssErr) {
-      console.warn("⚠️ Failed to capture screenshot:", ssErr.message);
+      console.warn("Failed to capture screenshot:", ssErr.message);
     }
 
     return {
@@ -577,7 +494,9 @@ async getMediaInfo(url) {
     };
   } finally {
     try {
-      if (page && !page.isClosed()) await page.close();
+      if (page && !page.isClosed()) {
+        await page.close();
+      }
     } catch (closeError) {
       console.error("Failed to close page:", closeError.message);
     }
